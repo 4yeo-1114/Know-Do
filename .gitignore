@@ -47,6 +47,7 @@ docs/
 # Archived teaching scripts
 KnowDo/examples/
 KnowDo/main.py
+KnowDo/*.md
 tests/test_agent_loop_demo.py
 tests/test_multi_turn.py
 tests/test_task_proposal_demo.py

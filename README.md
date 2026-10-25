@@ -10,7 +10,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![DeepSeek](https://img.shields.io/badge/LLM-DeepSeek-4D6BFE)](https://api-docs.deepseek.com/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-checkpoint-1C3C3C)](https://langchain-ai.github.io/langgraph/)
-[![浏览器验收](https://img.shields.io/badge/浏览器验收-8场景76/76-brightgreen)](KnowDo/docs/images/desktop-1440x900-overview.png)
+
 
 <p align="center">
   <img src="KnowDo/docs/images/desktop-1440x900-overview.png" width="80%" alt="桌面端总览视图">
@@ -98,15 +98,6 @@ cd KnowDo     # 测试位于仓库根的 tests/
 6. **档案与计划视图**：填写学习档案（目标、每日分钟、训练频次），生成周计划；确认后计划里的任务才会落库。下周生成调整提案，同样需要你确认。
 7. **API 调试**：Swagger 文档 <http://127.0.0.1:8001/docs> 覆盖全部端点。
 
-## 项目缘起
-
-这是一个从零写起的后端学习项目：一开始只是 CLI 里的任务 CRUD，然后一步一步长成今天的样子——JSON 存储、SQLite、FastAPI、认证与用户隔离、PostgreSQL、RAG 检索、工具调用 Agent、写入确认、持久会话、浏览器工作台。每个阶段都先解决一个真实问题，再进入下一阶段。
-
-做这个项目时反复撞上三个问题，它们决定了现在的架构：
-
-1. **模型不可信**：大模型会编造事实、写坏数据。所以它只能"建议"，写库必须经过用户确认。
-2. **检索不能脱离资料**：RAG 的上下文必须来自你上传的资料，没有证据时要明确拒答。
-3. **数据不能越界**：多用户下，隔离必须发生在资料进入应用和模型**之前**，而不是"查出来再过滤"。
 
 ## 核心特性
 
@@ -310,12 +301,7 @@ PostgreSQL 全文检索的三个决定：受限 token 白名单（只放行安�
 | [KnowDo/DOCKER.md](KnowDo/DOCKER.md) | Compose 环境、端口与网络 |
 | [KnowDo/QUALITY_REPORT.md](KnowDo/QUALITY_REPORT.md) | 项目质量与失败复盘 |
 | [KnowDo/FINAL_ACCEPTANCE.md](KnowDo/FINAL_ACCEPTANCE.md) | 最终验收场景（演示与面试复盘） |
-| [KnowDo/PROJECT_PORTFOLIO.md](KnowDo/PROJECT_PORTFOLIO.md) | 简历亮点与指标来源清单 |
-| docs/UASB源码架构与进度讲解.md | 当前源码逐模块拆解（面试讲解用） |
-| docs/UPG06证据账本.md | 全部可引用证据、运行范围与禁用说法 |
-| docs/UPG06演示与面试脚本.md | 演示流程与面试追问 |
 
-> `docs/` 下的三份文档是本地求职材料，不随仓库发布（见仓库根 `.gitignore`），仅在本地阅读。
 
 ## 演进路线
 
