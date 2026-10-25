@@ -46,7 +46,7 @@ def test_upgrade_creates_versioned_tasks_table(tmp_path):
 
 def test_upgrade_preserves_existing_tasks_without_assigning_owner(tmp_path):
     url = f"sqlite+pysqlite:///{(tmp_path / 'existing.db').as_posix()}"
-    config = Config(str(Path(__file__).parents[1] / "study_task_assistant" / "alembic.ini"))
+    config = Config(str(Path(__file__).parents[1] / "KnowDo" / "alembic.ini"))
     config.attributes["database_url"] = url
     command.upgrade(config, "0001_initial_tasks")
     engine = create_engine(url)
@@ -89,7 +89,7 @@ def test_upgrade_preserves_existing_tasks_without_assigning_owner(tmp_path):
 
 def test_agent_message_sequence_migration_backfills_existing_messages(tmp_path):
     url = f"sqlite+pysqlite:///{(tmp_path / 'agent-sequence.db').as_posix()}"
-    config = Config(str(Path(__file__).parents[1] / "study_task_assistant" / "alembic.ini"))
+    config = Config(str(Path(__file__).parents[1] / "KnowDo" / "alembic.ini"))
     config.attributes["database_url"] = url
     command.upgrade(config, "0016_plan_adjustments")
     engine = create_engine(url)

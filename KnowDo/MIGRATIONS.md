@@ -5,12 +5,12 @@
 在仓库根目录的 PowerShell 中，安装依赖后执行：
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -r study_task_assistant\requirements.txt
-.\.venv\Scripts\python.exe -m alembic -c study_task_assistant\alembic.ini upgrade head
-.\.venv\Scripts\python.exe -m alembic -c study_task_assistant\alembic.ini current
+.\.venv\Scripts\python.exe -m pip install -r KnowDo\requirements.txt
+.\.venv\Scripts\python.exe -m alembic -c KnowDo\alembic.ini upgrade head
+.\.venv\Scripts\python.exe -m alembic -c KnowDo\alembic.ini current
 ```
 
-没有设置 `DATABASE_URL` 时，上述命令操作 `study_task_assistant/tasks.db`。若要迁移 PostgreSQL，先在当前终端设置 `DATABASE_URL` 为目标数据库连接串，再执行相同的 `upgrade head` 和 `current`。不要把真实密码写进文档或提交到 Git。
+没有设置 `DATABASE_URL` 时，上述命令操作 `KnowDo/tasks.db`。若要迁移 PostgreSQL，先在当前终端设置 `DATABASE_URL` 为目标数据库连接串，再执行相同的 `upgrade head` 和 `current`。不要把真实密码写进文档或提交到 Git。
 
 `upgrade head` 会按版本文件实际修改表结构，并在 `alembic_version` 记录已执行版本。`current` 只读取当前版本。`stamp 0001_initial_tasks` **只登记版本，不建表也不改表**；只有确认已有表结构与第一版文件一致时才能用。仓库中原有的 PostgreSQL `study_tasks.tasks` 曾核对后标记为第一版，此后已实际升级到第二版。
 

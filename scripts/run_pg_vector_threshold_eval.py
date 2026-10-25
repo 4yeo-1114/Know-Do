@@ -10,7 +10,7 @@ from pathlib import Path
 from statistics import mean
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "study_task_assistant"))
+sys.path.insert(0, str(ROOT / "KnowDo"))
 
 from knowledge.embedding_retrieval import FastEmbedEmbeddingModel
 from knowledge.knowledge_runtime import KnowledgeRuntimeConfig

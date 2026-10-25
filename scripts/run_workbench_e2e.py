@@ -32,7 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-APP_DIR = ROOT / "study_task_assistant"
+APP_DIR = ROOT / "KnowDo"
 BENCH = ROOT / "benchmarks" / "workbench_e2e_upg05"
 
 STUB_FINAL = "已收到你的消息（离线桩模型回答）。"

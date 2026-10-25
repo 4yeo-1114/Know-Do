@@ -38,11 +38,11 @@ api.py -> web/api.py
 在仓库根目录启动：
 
 ```powershell
-.\.venv\Scripts\python.exe -m uvicorn --app-dir study_task_assistant api:app --reload
+.\.venv\Scripts\python.exe -m uvicorn --app-dir KnowDo api:app --reload
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-在 `study_task_assistant/` 中启动：
+在 `KnowDo/` 中启动：
 
 ```powershell
 python -m uvicorn api:app --reload

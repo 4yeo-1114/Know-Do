@@ -2,11 +2,11 @@
 __pycache__/
 .pytest_cache/
 *.pyc
-study_task_assistant/tasks.json
+KnowDo/tasks.json
 *.db
 *.dump
 .env
-study_task_assistant/.env
+KnowDo/.env
 .worktrees/
 
 # Local secrets and runtime state
@@ -39,12 +39,14 @@ w6总结-w7-w8计划.md
 w8总结.md
 w10总结.md
 AGENTS.md
+简历.md
 rag.patch
 docs/superpowers/
+docs/
 
 # Archived teaching scripts
-study_task_assistant/examples/
-study_task_assistant/main.py
+KnowDo/examples/
+KnowDo/main.py
 tests/test_agent_loop_demo.py
 tests/test_multi_turn.py
 tests/test_task_proposal_demo.py

@@ -5,7 +5,7 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "study_task_assistant"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "KnowDo"))
 
 from knowledge.formal_dataset import build_formal_candidate
 from knowledge.retrieval_baseline import load_dataset

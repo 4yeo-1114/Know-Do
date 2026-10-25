@@ -33,7 +33,7 @@ Docker Compose 是读取 `compose.yaml`、一次配置并管理多个容器的�
 在 PowerShell 进入项目目录：
 
 ```powershell
-cd D:\dev-learning\study_task_assistant
+cd D:\dev-learning\KnowDo
 if (-not (Test-Path .env)) { Copy-Item .env.compose.example .env }
 ```
 
@@ -55,7 +55,7 @@ docker compose logs --tail=80 api
 如果不使用 Compose，而是在仓库根目录启动本地 SQLite API，必须告诉 Uvicorn `web/api.py` 所在目录：
 
 ```powershell
-..\.venv\Scripts\python.exe -m uvicorn --app-dir study_task_assistant api:app --reload
+..\.venv\Scripts\python.exe -m uvicorn --app-dir KnowDo api:app --reload
 ```
 
 ## 观察与排错

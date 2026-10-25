@@ -79,7 +79,7 @@ def test_dataset_rejects_invalid_experiment_inputs(tmp_path, change):
 def test_snapshot_includes_untracked_source_and_excludes_runtime_secrets(tmp_path):
     module = baseline()
     root = tmp_path / "repo"
-    app = root / "study_task_assistant"
+    app = root / "KnowDo"
     app.mkdir(parents=True)
     (app / "new.py").write_text("VALUE = 1\n", encoding="utf-8")
     (app / ".env").write_text("SECRET=never-copy", encoding="utf-8")
@@ -91,7 +91,7 @@ def test_snapshot_includes_untracked_source_and_excludes_runtime_secrets(tmp_pat
     output = tmp_path / "snapshot"
     manifest = module.snapshot_source(root, output)
     with zipfile.ZipFile(output / "source.zip") as archive:
-        assert archive.namelist() == ["study_task_assistant/new.py"]
+        assert archive.namelist() == ["KnowDo/new.py"]
         assert archive.read(archive.namelist()[0]) == (app / "new.py").read_bytes()
     first_hash = manifest["source_sha256"]
     (app / "new.py").write_text("VALUE = 2\n", encoding="utf-8")
@@ -101,7 +101,7 @@ def test_snapshot_includes_untracked_source_and_excludes_runtime_secrets(tmp_pat
 
 def test_snapshot_is_stable_and_excludes_unrelated_and_unknown_files(tmp_path):
     root = tmp_path / "repo"
-    app = root / "study_task_assistant"
+    app = root / "KnowDo"
     app.mkdir(parents=True)
     (app / "main.py").write_bytes(b"x = 1\n")
     (app / "key.pem").write_text("private", encoding="utf-8")

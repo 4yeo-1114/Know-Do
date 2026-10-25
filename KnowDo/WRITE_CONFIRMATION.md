@@ -21,7 +21,7 @@
 本机默认 `tasks.db` 已升级到 `0004_proposal_task_history`；其他数据库先在项目目录执行 `python -m alembic upgrade head`。若使用 PostgreSQL，确保迁移命令和演示程序读取相同的 `DATABASE_URL`。环境变量 `DEEPSEEK_API_KEY` 仍需在当前终端有效，密钥不要写进源码。
 
 ```powershell
-cd D:\dev-learning\study_task_assistant
+cd D:\dev-learning\KnowDo
 python task_proposal_demo.py
 ```
 

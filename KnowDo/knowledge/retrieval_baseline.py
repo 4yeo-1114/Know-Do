@@ -314,7 +314,7 @@ def snapshot_source(root: str | Path, output: str | Path) -> dict[str, Any]:
     output_path = Path(output).resolve()
     output_path.mkdir(parents=True, exist_ok=True)
     files: list[Path] = []
-    allowed_roots = {"study_task_assistant", "tests", ".github", "scripts", "benchmarks"}
+    allowed_roots = {"KnowDo", "tests", ".github", "scripts", "benchmarks"}
     allowed_root_files = {"pytest.ini", "README.md", ".gitignore"}
     allowed_names = {"Dockerfile", ".env.example", ".env.compose.example", "requirements.txt"}
     allowed_suffixes = {".py", ".md", ".html", ".css", ".js", ".ini", ".yaml", ".yml", ".mako"}

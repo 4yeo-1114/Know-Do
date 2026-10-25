@@ -16,11 +16,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TEST_FILE = ROOT / "tests" / "test_agent_scenario_suite.py"
 SOURCE_FILES = tuple(sorted({
-    * (ROOT / "study_task_assistant").rglob("*.py"),
+    * (ROOT / "KnowDo").rglob("*.py"),
     * (ROOT / "tests").rglob("*.py"),
     * (ROOT / "scripts").glob("*.py"),
     Path(__file__).resolve(),
-    ROOT / "study_task_assistant" / "requirements.txt",
+    ROOT / "KnowDo" / "requirements.txt",
     ROOT / "pytest.ini",
 }))
 DEFAULT_OUT = ROOT / "benchmarks" / "agent_scenarios_upg04"
