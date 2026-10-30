@@ -1,30 +1,34 @@
-# 学习任务助手架构
+# 知行 KnowDo 架构
 
 ## 项目定位
 
-这是一个带 RAG 和工具调用 Agent 的学习任务助手。用户可以管理任务、上传个人资料，并通过自然语言查询任务或资料。只读操作可以由 Agent 自动执行；创建任务等写操作先生成提案，必须经过用户确认后才会修改数据库。
+知行 KnowDo 是一个带 RAG 和工具调用 Agent 的个人学习与训练工作台。用户可以管理任务、记录训练、维护学习档案、上传个人资料，并通过自然语言查询任务或资料。只读操作可以由 Agent 自动执行；创建任务、生成周计划等写操作先生成提案，必须经过用户确认后才会修改数据库。
 
 ## 运行时组件
 
 ```text
-浏览器 / curl / 前端
+浏览器工作台（六视图）
           |
           v
 FastAPI
   |-- JWT 认证：从 token 的 sub 得到 user_id
-  |-- /tasks：任务 CRUD
+  |-- /tasks：任务 CRUD 与进度统计
+  |-- /fitness：训练、体重与 CSV 幂等导入
+  |-- /profile、/plans：学习档案与周计划（提案确认）
   |-- /documents：资料上传、查询、删除
-  `-- /agent/chat：Agent 入口
+  `-- /agent：多轮会话、任务提案、审批恢复
           |
           v
-Agent Loop
+Agent Loop（LangGraph 审批图 + checkpoint 持久化）
   |-- DeepSeek：决定是否调用工具、组织最终回答
   |-- 只读任务工具：查询 tasks
-  |-- search_knowledge：混合检索当前用户资料
-  `-- create_task：创建 pending proposal
+  |-- search_knowledge：关键词 FTS + pgvector 混合检索当前用户资料
+  |-- 写入工具：只创建 pending 提案（任务 / 周计划）
+  |-- interrupt / resume：确认类流程可跨请求恢复
           |
           +--> PostgreSQL + pgvector
-          |      `-- tasks / task_proposals / documents / document_chunks
+          |      `-- users / tasks / task_proposals / documents / document_chunks
+          |          / fitness / user_profiles / weekly_plans / agent_sessions
           |
           `--> 结构化日志
                  `-- request_id / agent_run_id / step / tool_call_id
@@ -36,14 +40,18 @@ Agent Loop
 |---|---|---|
 | API 与认证 | `web/api.py`, `web/auth.py` | 解析 HTTP 请求、校验 JWT、注入可信 `user_id`、映射错误状态码 |
 | 任务业务 | `tasks/service.py`, `tasks/repository.py` | 任务的查询、创建、完成和删除 |
-| Agent 编排 | `agent/agent_loop.py` | 管理消息历史、模型 step、工具调用、预算、停止条件和 trace |
-| 工具定义 | `llm/deepseek_tools.py`, `agent/knowledge_tools.py`, `agent/readonly_tools.py` | schema、白名单、参数校验和本地执行 |
+| 训练业务 | `fitness/service.py`, `fitness/repository.py`, `fitness/importer.py` | 训练/体重记录、聚合统计、CSV 两阶段幂等导入 |
+| 学习档案 | `user_profile/` | 显式档案（目标、每日分钟、训练频次）与 revision 乐观并发 |
+| 周计划 | `weekly_plans/` | 计划提案、版本校验、确认/拒绝/调整 |
+| Agent 编排 | `agent/agent_loop.py`, `agent/persistent_runtime.py`, `agent/plan_approval.py` | 模型决策循环、工具调用、预算与停止条件、会话与审批图持久化 |
+| 工具定义 | `llm/deepseek_tools.py`, `agent/knowledge_tools.py`, `agent/readonly_tools.py`, `agent/planning_tools.py` | schema、白名单、参数校验和本地执行 |
 | 写入确认 | `tasks/task_proposals.py` | pending/confirmed/rejected 状态、幂等和确认事务 |
-| RAG 检索 | `knowledge/keyword_retrieval.py`, `knowledge/embedding_retrieval.py`, `knowledge/hybrid_retrieval.py` | 关键词、向量和融合排序 |
-| 文档入库 | `knowledge/document_service.py`, `knowledge/document_ingestion.py`, `knowledge/document_lifecycle.py` | 文档状态、版本、切块、Embedding、向量写入和删除 |
+| RAG 检索 | `knowledge/keyword_retrieval.py`, `knowledge/embedding_retrieval.py`, `knowledge/hybrid_retrieval.py` | 关键词全文检索、向量检索和 RRF 融合排序 |
+| 文档入库 | `knowledge/document_service.py`, `knowledge/document_ingestion.py`, `knowledge/document_lifecycle.py`, `knowledge/pdf_parser.py` | 文档状态、版本、切块、Embedding、向量写入、删除和 PDF 文本解析 |
 | 数据存储 | `storage/database.py`, `storage/models.py`, `storage/pgvector_store.py` | SQLAlchemy Session、ORM 模型和 pgvector SQL |
 | 生产组装 | `knowledge/knowledge_runtime.py` | 共享模型/检索器，按请求创建有状态工具执行器 |
 | 观测 | `core/observability.py` | request ID 传播、JSON 日志、耗时和错误类型 |
+| 前端工作台 | `frontend/` | 六视图工作台（index.html / app.css / app.js），无框架依赖 |
 
 ## Agent 请求数据流
 
@@ -80,6 +88,10 @@ DeepSeek 返回 create_task tool_call
 ```
 
 `tool_call_id` 只标识模型的一次工具调用；`proposal_id` 标识数据库中的业务提案，二者不能混用。
+
+### 周计划
+
+周计划走同一条提案-确认路径，但确认条件更严格：确认时还会校验档案 `revision` 与计划 `plan_version`，用户改过档案或已有新计划时旧提案返回 409。审批流使用 LangGraph 的 checkpoint 持久化与 interrupt/resume——确认途中刷新或关闭页面，下次打开可以继续。
 
 ## 权限边界
 
@@ -177,11 +189,11 @@ Windows -> 127.0.0.1:8001 -> api:8000
 api     -> db:5432          -> PostgreSQL + pgvector
 ```
 
-`api` 容器启动时先执行 `alembic upgrade head`，迁移成功后启动 Uvicorn。PostgreSQL 数据保存在命名卷，FastEmbed 模型缓存保存在 `fastembed_cache` 命名卷。
+`api` 容器启动时先执行 `alembic upgrade head`，迁移成功后启动 Uvicorn。PostgreSQL 数据保存在 `postgres_data` 命名卷，FastEmbed 模型缓存保存在 `fastembed_cache` 命名卷。
 
 ## 当前限制
 
-- 当前接口接收纯文本资料，还没有文件解析和异步任务队列；
-- 混合检索和评测集适合学习项目，尚未针对大规模数据做容量压测；
-- 客户端没有独立前端，提案确认可通过 `/docs` 或 HTTP 客户端完成；
-- W11 的目标是整理和演示已有闭环，不再引入复杂多 Agent 或微服务架构。
+- 资料解析支持纯文本与文本型 PDF；扫描件/加密 PDF 返回 415，暂不做 OCR，无 Word 解析。
+- 检索评测基于合成语料与独立实验库，未做大规模容量压测。
+- 浏览器 E2E 使用离线桩模型；在线回答质量与费用不在 E2E 验收范围。
+- 架构保持单体、单用户主场景，不引入微服务或复杂多 Agent。

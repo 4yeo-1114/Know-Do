@@ -51,7 +51,7 @@ def test_postgres_repository_round_trip():
         database.dispose()
 
 
-def test_postgres_upg03_full_text_columns_and_page_provenance():
+def test_postgres_full_text_columns_and_page_provenance():
     raw_url = os.environ.get("TEST_DATABASE_URL")
     if raw_url is None:
         pytest.skip("需要 TEST_DATABASE_URL")

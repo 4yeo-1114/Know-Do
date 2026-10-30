@@ -1,7 +1,7 @@
-"""UPG-05 工作台浏览器验收运行器（Claude 独立复核用）。
+"""工作台浏览器验收运行器。
 
 用系统 Edge（channel=msedge，免下载 Chromium）+ 独立临时 SQLite 库 + 本地桩 LLM
-启动真实 FastAPI 应用，在真实浏览器中执行 UPG-05 验收清单：
+启动真实 FastAPI 应用，在真实浏览器中执行验收清单：
 
   S1 登录与工作台加载      S4 周计划待确认→确认→任务落库
   S2 任务新增/实际用时/完成 S5 Agent 会话切换与重载恢复
@@ -10,7 +10,7 @@
   S8 桌面 1440x900 与手机 390x844 截图与布局检查
   S9 Canvas 像素（空/单条/多条状态，CSS 与像素尺寸）
 
-证据输出到 benchmarks/workbench_e2e_upg05/<UTC 时间戳>/，目录存在即拒绝覆盖。
+证据输出到 benchmarks/workbench_e2e/<UTC 时间戳>/，目录存在即拒绝覆盖。
 桩模型行为：首步必须 tool_calls（agent loop 强制 tool_choice=required），
 收到工具结果后返回最终回答；这证明控制流与业务约束，不代表在线模型质量。
 """
@@ -33,7 +33,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 APP_DIR = ROOT / "KnowDo"
-BENCH = ROOT / "benchmarks" / "workbench_e2e_upg05"
+BENCH = ROOT / "benchmarks" / "workbench_e2e"
 
 STUB_FINAL = "已收到你的消息（离线桩模型回答）。"
 BASE_URL = ""  # 由 main() 在应用就绪后设置
@@ -848,7 +848,7 @@ def main() -> int:
         (evidence / "report.json").write_text(
             json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
-        print(f"\n===== UPG-05 工作台浏览器验收 =====\n证据目录: {evidence}")
+        print(f"\n===== 工作台浏览器验收 =====\n证据目录: {evidence}")
         for run in scenario_runs:
             print(f"  {run['id']}: {run['status']} ({run['seconds']}s)")
         print(f"\n检查: {checks_pass}/{checks_total} 通过")

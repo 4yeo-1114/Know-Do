@@ -19,7 +19,7 @@ def main():
     parser.add_argument("--full-suite", action="store_true")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
-    output = args.output or ROOT / "benchmarks" / "pg_agent_upg04" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    output = args.output or ROOT / "benchmarks" / "pg_agent_acceptance" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     if output.exists() and any(output.iterdir()):
         parser.error("output must be new or empty")
     output.mkdir(parents=True, exist_ok=True)
@@ -27,7 +27,7 @@ def main():
     with zipfile.ZipFile(output / "source.zip", "w", zipfile.ZIP_DEFLATED) as archive:
         for path in SOURCE_FILES:
             archive.write(path, path.relative_to(ROOT))
-    name = "upg04-test-" + secrets.token_hex(8)
+    name = "pg-accept-" + secrets.token_hex(8)
     password = secrets.token_urlsafe(24)
     # A unique container without a volume; never reset a user's existing database.
     created = subprocess.run([

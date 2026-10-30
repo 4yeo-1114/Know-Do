@@ -2,7 +2,7 @@
   "version": "retrieval-labeled-v1",
   "dataset_kind": "human_labeled",
   "review_status": "approved",
-  "description": "120-case human-reviewed acceptance set (dev 40 / frozen 80); labels verified against chunk texts; reviewed 2026-10-17 by Claude Code on behalf of the user; usable for formal Recall@5 / MRR@5 / no-answer accuracy and filter-window comparison experiments.",
+  "description": "120-case human-reviewed acceptance set (dev 40 / frozen 80); labels verified against chunk texts; reviewed 2026-10-17; usable for formal Recall@5 / MRR@5 / no-answer accuracy and filter-window comparison experiments.",
   "chunks": [
     {
       "source": "auth.md",

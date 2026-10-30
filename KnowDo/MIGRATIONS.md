@@ -1,6 +1,8 @@
-# 数据库表结构迁移
+# 数据库表结构迁移（Alembic）
 
-项目使用 Alembic 管理表结构。`web/api.py` 启动时只创建 Engine 和 Session factory，不自动建表；先执行迁移，再启动服务。迁移文件位于 `migrations/versions/`，当前版本为 `0004_proposal_task_history`。第一版创建任务表，第二版增加用户和任务归属，第三版增加等待用户确认的任务提案表，第四版让已确认任务删除后仍能保留提案历史 ID。
+项目使用 Alembic 管理表结构。应用启动时只创建 Engine 和 Session factory，不自动建表；先执行迁移，再启动服务。迁移文件位于 `migrations/versions/`，当前版本为 `0017_agent_message_sequence`。
+
+## 执行迁移
 
 在仓库根目录的 PowerShell 中，安装依赖后执行：
 
@@ -12,16 +14,31 @@
 
 没有设置 `DATABASE_URL` 时，上述命令操作 `KnowDo/tasks.db`。若要迁移 PostgreSQL，先在当前终端设置 `DATABASE_URL` 为目标数据库连接串，再执行相同的 `upgrade head` 和 `current`。不要把真实密码写进文档或提交到 Git。
 
-`upgrade head` 会按版本文件实际修改表结构，并在 `alembic_version` 记录已执行版本。`current` 只读取当前版本。`stamp 0001_initial_tasks` **只登记版本，不建表也不改表**；只有确认已有表结构与第一版文件一致时才能用。仓库中原有的 PostgreSQL `study_tasks.tasks` 曾核对后标记为第一版，此后已实际升级到第二版。
+`upgrade head` 按版本文件实际修改表结构，并在 `alembic_version` 记录已执行版本；`current` 只读取当前版本。`stamp` 只登记版本，不建表也不改表，只有确认已有表结构与对应版本文件一致时才能使用。
 
-本地旧版 `tasks.db` 曾使用 TEXT 日期，如 `2026-9-10`，与当前 SQLAlchemy `Date` 不一致。它已由一次性脚本迁移；原文件备份为 `tasks-pre-alembic.db`，两条任务保留，日期规范为 `2026-09-10`。若在其他机器迁移同样的旧库，先停止使用它的程序，并在项目目录执行：
+## 版本演进
 
-```powershell
-..\.venv\Scripts\python.exe -c "from pathlib import Path; from legacy_sqlite_migration import migrate_legacy_sqlite; migrate_legacy_sqlite(Path('tasks.db'))"
-```
+| 版本 | 内容 |
+|---|---|
+| `0001` | 初始任务表 |
+| `0002` | 用户表与任务归属（owner_id） |
+| `0003` / `0004` | 任务提案表与提案历史保留 |
+| `0005` / `0006` | pgvector `document_chunks` 表与 HNSW 索引 |
+| `0007` | 文档生命周期状态 |
+| `0008` | 提案幂等键 |
+| `0009` / `0010` / `0011` | 任务活动字段、训练记录、CSV 导入 |
+| `0012` | 关键词全文检索（tsvector + GIN）与来源元数据 |
+| `0013` | 学习档案（user_profiles） |
+| `0014` | Agent 会话持久化 |
+| `0015` / `0016` | 周计划与调整提案 |
+| `0017` | 会话消息序号 |
 
-该脚本会拒绝覆盖已有备份或临时数据库；不要对已经迁移过的数据库重复运行。
+升级到 `0012` 时，已有 `document_chunks` 的 `search_tokens` 默认为空，迁移不会自动对旧正文分词。已有资料需要使用新的 `document_version` 重新入库并确认其状态为 `ready`，关键词全文检索才会包含新版本；原活动版本在重建失败时仍可保留。此限制不影响向量检索。
 
-第二版升级前，本机又备份了 `tasks-pre-auth.db` 和 `study_tasks-pre-auth.dump`。升级后原任务仍在库中，但 `owner_id` 为 NULL；认证接口不会向新用户显示这些历史记录。备份文件被 Git 忽略。
+## 旧库迁移
 
-`alembic check` 的自动结构比较只包含项目模型管理的 `tasks`、`users`、`task_proposals`；同库中的 `practice_*` 练习表不属于本项目迁移范围，不会被建议删除。
+早期 CLI 阶段未使用 Alembic 的旧 `tasks.db` 可用 `storage/legacy_sqlite_migration.py` 一次性迁移。脚本会拒绝覆盖已有备份或重复运行；迁移前先停止使用该数据库的程序。
+
+## 结构检查
+
+`alembic check` 的自动结构比较只包含项目模型管理的表；同库中不属于本项目的表不会被建议删除。

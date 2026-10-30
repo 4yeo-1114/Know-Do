@@ -4,7 +4,7 @@
 
 上传资料、问它问题；安排任务、记录用时；练完力量、记录重量；每个周一，让它基于你的档案和上一周的真实进展生成周计划——但计划只是提案，**必须由你确认才会变成任务**。
 
-[![CI](https://github.com/4yeo-1114/Know-Do/actions/workflows/study-task-assistant.yml/badge.svg)](https://github.com/4yeo-1114/Know-Do/actions/workflows/study-task-assistant.yml)
+[![CI](https://github.com/4yeo-1114/Know-Do/actions/workflows/ci.yml/badge.svg)](https://github.com/4yeo-1114/Know-Do/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
@@ -236,7 +236,7 @@ PostgreSQL 全文检索的三个决定：受限 token 白名单（只放行安�
 
 ## 实测数据
 
-> 全部数字来自真实运行报告（本仓库 `benchmarks/` 下保留原始证据），可对照 [KnowDo/PROJECT_PORTFOLIO.md](KnowDo/PROJECT_PORTFOLIO.md) 的指标来源清单逐条溯源；**不代表在线规模或生产并发容量**。
+> 全部数字来自真实运行报告，原始证据保存在本仓库 `benchmarks/` 下（报告、截图、数据库实证）；**不代表在线规模或生产并发容量**。
 
 ### RAG 检索（同一 120 条人工核验题集，每策略 5 轮共 600 次测量）
 
@@ -280,12 +280,10 @@ PostgreSQL 全文检索的三个决定：受限 token 白名单（只放行安�
 │   ├── core/                    # 结构化日志（request_id）与重试策略
 │   ├── frontend/                # 六视图工作台（index.html / app.css / app.js）
 │   ├── migrations/              # Alembic 迁移
-│   ├── legacy/                  # 早期 CLI 与 SQLite 学习实现
-│   ├── examples/                # 单模块演示
+│   ├── legacy/                  # 早期 CLI 与 SQLite 原型实现
 │   └── docs/images/             # 浏览器验收截图
 ├── tests/                       # 全量 pytest（含 PostgreSQL 专项）
 ├── benchmarks/                  # 原始实验与验收证据（报告、截图、DB 实证）
-├── docs/                        # 证据账本、演示脚本、源码讲解
 └── .github/workflows/           # CI：push / PR 触发全量测试
 ```
 
@@ -293,14 +291,16 @@ PostgreSQL 全文检索的三个决定：受限 token 白名单（只放行安�
 
 | 文档 | 内容 |
 |---|---|
-| [KnowDo/ARCHITECTURE.md](KnowDo/ARCHITECTURE.md) | 架构、Agent 数据流、权限边界、错误映射（部分章节为早期版本，以代码为准） |
+| [KnowDo/ARCHITECTURE.md](KnowDo/ARCHITECTURE.md) | 架构、Agent 数据流、权限边界、错误映射 |
 | [KnowDo/MODULE_LAYOUT.md](KnowDo/MODULE_LAYOUT.md) | 目录职责与请求链路 |
 | [KnowDo/AUTH.md](KnowDo/AUTH.md) | 注册/登录与任务隔离 |
 | [KnowDo/WRITE_CONFIRMATION.md](KnowDo/WRITE_CONFIRMATION.md) | 任务提案与确认机制 |
-| [KnowDo/RAG.md](KnowDo/RAG.md) | RAG 与关键词检索基线 |
+| [KnowDo/RAG.md](KnowDo/RAG.md) | RAG 检索、答案溯源与评测 |
+| [KnowDo/RELIABILITY.md](KnowDo/RELIABILITY.md) | 重试策略、安全日志与固定评测 |
+| [KnowDo/MIGRATIONS.md](KnowDo/MIGRATIONS.md) | Alembic 迁移与版本说明 |
 | [KnowDo/DOCKER.md](KnowDo/DOCKER.md) | Compose 环境、端口与网络 |
 | [KnowDo/QUALITY_REPORT.md](KnowDo/QUALITY_REPORT.md) | 项目质量与失败复盘 |
-| [KnowDo/FINAL_ACCEPTANCE.md](KnowDo/FINAL_ACCEPTANCE.md) | 最终验收场景（演示与面试复盘） |
+| [KnowDo/FINAL_ACCEPTANCE.md](KnowDo/FINAL_ACCEPTANCE.md) | 功能验收与演示场景 |
 
 
 ## 演进路线

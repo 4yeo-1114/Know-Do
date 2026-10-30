@@ -1,4 +1,4 @@
-"""Run the deterministic UPG-04 Agent acceptance suite and save auditable output."""
+"""Run the deterministic Agent acceptance suite and save auditable output."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ SOURCE_FILES = tuple(sorted({
     ROOT / "KnowDo" / "requirements.txt",
     ROOT / "pytest.ini",
 }))
-DEFAULT_OUT = ROOT / "benchmarks" / "agent_scenarios_upg04"
+DEFAULT_OUT = ROOT / "benchmarks" / "agent_scenarios"
 
 
 def _manifest() -> dict:
@@ -38,7 +38,7 @@ def _manifest() -> dict:
         ["git", "status", "--short"], cwd=ROOT, text=True, capture_output=True,
     )
     return {
-        "suite": "UPG-04 deterministic Agent acceptance",
+        "suite": "deterministic Agent acceptance",
         "test_file": str(TEST_FILE.relative_to(ROOT)),
         "source_sha256": source_hashes,
         "git_head": head_result.stdout.strip() if head_result.returncode == 0 else "unavailable",

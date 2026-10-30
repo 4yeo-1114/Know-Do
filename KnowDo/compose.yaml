@@ -1,4 +1,4 @@
-name: study-task-assistant-w5
+name: knowdo
 
 services:
   db:

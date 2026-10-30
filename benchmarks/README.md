@@ -1,6 +1,6 @@
-# UPG-01 检索基线
+# 检索基准与验收证据
 
-当前提供试运行管线、人工标注题集和正式 PostgreSQL 检索/过滤窗口实验；HNSW 结果已完成 1,000/10,000 chunk、100 查询×5 轮诊断，但多 owner/多版本真实分布仍需后续阶段补充。
+当前提供试运行管线、人工标注题集和正式 PostgreSQL 检索/过滤窗口实验；HNSW 结果已完成 1,000/10,000 chunk、100 查询×5 轮诊断，但多 owner/多版本真实分布仍需补充验证。
 
 ## 120 条正式人工标注集（2026-10-17）
 
@@ -12,7 +12,7 @@
 
 `benchmarks/retrieval_candidate_v1.json` 包含 120 条候选问题：development 40 条、frozen 80 条；每个 split 含 20 条无答案题。题目由公开的 10 个合成 chunk 生成，文件明确标记 `dataset_kind=ai_generated_candidate` 和 `review_status=pending_human_review`。运行器默认拒绝这类文件，必须显式传 `--allow-candidate`，避免把未人工核对的题集当作正式验收集。
 
-候选基线报告保存在 `D:/dev-learning-baselines/2026-10-17-formal-candidate-pg-v3`，独立 PostgreSQL、10 active chunks、120 题、5 轮、每策略 600 条测量。整体 Recall@5/MRR@5/无答案正确率：keyword=0.675/0.650/0.900，vector=1.000/0.918/0.000，hybrid=1.000/0.876/0.000。development 的 keyword/vector/hybrid Recall@5 为 0.650/1.000/1.000；frozen 为 0.683/1.000/1.000。这些数字是候选集的工程基线，不是人工验收质量，也不能直接写入简历。
+候选基线报告保存在 `D:/dev-learning-baselines/2026-10-17-formal-candidate-pg-v3`，独立 PostgreSQL、10 active chunks、120 题、5 轮、每策略 600 条测量。整体 Recall@5/MRR@5/无答案正确率：keyword=0.675/0.650/0.900，vector=1.000/0.918/0.000，hybrid=1.000/0.876/0.000。development 的 keyword/vector/hybrid Recall@5 为 0.650/1.000/1.000；frozen 为 0.683/1.000/1.000。这些数字是候选集的工程基线，不是人工验收质量，不代表生产规模性能。
 
 ## 过滤改写与 HNSW 对照（2026-10-17）
 
@@ -56,7 +56,7 @@ Recall@k：前k条命中的不同相关 chunk 数／全部相关 chunk 数。MRR
 
 P50/P95 使用排序样本线性插值。当前跨轮聚合相同问题；不是独立问题规模增加，也不是统计置信区间。
 
-## UPG-04 Agent 确定性场景
+## Agent 确定性场景
 
 从仓库根目录运行：
 
@@ -66,7 +66,7 @@ P50/P95 使用排序样本线性插值。当前跨轮聚合相同问题；不是
 
 运行器执行 `tests/test_agent_scenario_suite.py`：78 个参数化行为场景和 1 个场景集完整性检查，共 79 tests。旧报告的“72 个唯一场景”更正为 71 个行为场景 + 1 个完整性检查，历史原件保留。场景使用 SQLite 和 `httpx.MockTransport`，覆盖 API 授权、多轮与重开会话、显式档案、计划约束、确认幂等与冲突、工具权限和停止/重试边界，不测在线模型效果或真实费用。
 
-新报告默认写入 `benchmarks/agent_scenarios_upg04/<UTC时间戳>/`，非空目录拒绝覆盖。逐条 JUnit、JSON、stdout/stderr、运行前源码快照 `source.zip`、SHA-256、HEAD/dirty 与 Python 环境一起保存；`source_unchanged_during_run` 检查运行期间源码是否变化。不同报告不能拼成同一版本的证据。
+新报告默认写入 `benchmarks/agent_scenarios/<UTC时间戳>/`，非空目录拒绝覆盖。逐条 JUnit、JSON、stdout/stderr、运行前源码快照 `source.zip`、SHA-256、HEAD/dirty 与 Python 环境一起保存；`source_unchanged_during_run` 检查运行期间源码是否变化。不同报告不能拼成同一版本的证据。
 
 真实 PostgreSQL 验收另行运行（需要 Docker Linux engine）：
 
@@ -76,7 +76,7 @@ P50/P95 使用排序样本线性插值。当前跨轮聚合相同问题；不是
 .\.venv\Scripts\python.exe scripts/run_pg_agent_acceptance.py --full-suite
 ```
 
-运行器创建无持久卷的临时 `pgvector/pgvector:pg17` 容器、随机本地端口和专用 `study_tasks_test` 库，结束自动删除自己的容器，不使用现有业务库。密码不写入报告。产物保存到 `benchmarks/pg_agent_upg04/<UTC时间戳>/`，包含源码快照、原始结果、镜像 ID、命令和环境。PG 专项现有 9 tests，覆盖迁移、检索回归、checkpoint 重开/暂停恢复、提案创建与确认并发、消息序号分配、版本竞争、失败回滚和调整幂等。最终证据与边界见 [UPG-04 验收说明](../docs/UPG04持久Agent验收.md)。
+运行器创建无持久卷的临时 `pgvector/pgvector:pg17` 容器、随机本地端口和专用 `study_tasks_test` 库，结束自动删除自己的容器，不使用现有业务库。密码不写入报告。产物保存到 `benchmarks/pg_agent_acceptance/<UTC时间戳>/`，包含源码快照、原始结果、镜像 ID、命令和环境。PG 专项现有 9 tests，覆盖迁移、检索回归、checkpoint 重开/暂停恢复、提案创建与确认并发、消息序号分配、版本竞争、失败回滚和调整幂等。边界与结论以各报告内的 metadata、源码快照与原始结果为准。
 
 ## 产物与恢复
 
@@ -117,7 +117,7 @@ $env:TEST_DATABASE_URL = 'postgresql+psycopg://.../independent_experiment_db'
 | 10,000 | vector | 40.60 / 79.42 | 0.90 | 0.00 |
 | 10,000 | hybrid | 195.92 / 378.61 | 1.00 | 0.00 |
 
-每格只有 12 题 × 5 轮、单次环境运行；质量数字来自重复的 12 个合成标签，不可用于简历。两个规模的默认计划都对可见 chunk 排序，12 个问题中 HNSW 使用次数为 0。1,000 和 10,000 chunk 报告分别保存在 `D:/dev-learning-baselines/2026-10-14-upg01-scale-1000` 和 `D:/dev-learning-baselines/2026-10-14-upg01-scale-10000`。原始 JSON/CSV、计划、环境、源码哈希都在报告内；容器运行时 Git 不可用，`git_head` 为 `unavailable`。下一步用真实分布的合成语料和精确检索对照核实 HNSW，再优化关键词 SQL 路径。
+每格只有 12 题 × 5 轮、单次环境运行；质量数字来自重复的 12 个合成标签，仅代表合成数据上的管线行为。两个规模的默认计划都对可见 chunk 排序，12 个问题中 HNSW 使用次数为 0。1,000 和 10,000 chunk 报告分别保存在 `D:/dev-learning-baselines/2026-10-14-upg01-scale-1000` 和 `D:/dev-learning-baselines/2026-10-14-upg01-scale-10000`。原始 JSON/CSV、计划、环境、源码哈希都在报告内；容器运行时 Git 不可用，`git_head` 为 `unavailable`。下一步用真实分布的合成语料和精确检索对照核实 HNSW，再优化关键词 SQL 路径。
 
 ## 精确检索与 HNSW 探针（2026-10-14）
 
@@ -127,7 +127,7 @@ $env:TEST_DATABASE_URL = 'postgresql+psycopg://.../independent_experiment_db'
 
 默认不使用 HNSW 是当前数据和 SQL 下的规划器选择，不等于索引无效。下一步应先在正式问题集上验证过滤改写和 `ef_search`/索引参数，再报告 Recall@5、MRR@5、P95 的变化。强制 planner 设置只存在于诊断脚本，不改变生产请求配置。
 
-## UPG-03 PostgreSQL 全文候选检索（2026-10-20）
+## PostgreSQL 全文候选检索（2026-10-20）
 
 正式报告：`D:/dev-learning-baselines/2026-10-20-upg03-fts-or-labeled-v1`。实验使用独立 `study_tasks_eval` PostgreSQL/pgvector 数据库，`BAAI/bge-small-zh-v1.5`（512 维、1 线程），120 条人工核验题（development 40 / frozen 80）、10 个 active 合成 chunk；每策略预热 1 轮，计时 5 轮，共 600 条测量。计时范围为查询向量化、SQL 与融合，不含回答模型生成。
 

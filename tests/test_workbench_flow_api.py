@@ -1,4 +1,4 @@
-"""Backend contract exercised by the UPG-05 workbench without a browser."""
+"""Backend contract exercised by the workbench without a browser."""
 
 from datetime import date, timedelta
 
