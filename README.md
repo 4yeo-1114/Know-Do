@@ -12,21 +12,6 @@
 [![LangGraph](https://img.shields.io/badge/LangGraph-checkpoint-1C3C3C)](https://langchain-ai.github.io/langgraph/)
 
 
-<p align="center">
-  <img src="KnowDo/docs/images/desktop-1440x900-overview.png" width="80%" alt="桌面端总览视图">
-  <br><sub>桌面端 · 总览（真实 Edge 浏览器端到端验收截图）</sub>
-</p>
-
-<p align="center">
-  <img src="KnowDo/docs/images/desktop-1440x900-planning.png" width="80%" alt="周计划与提案确认视图">
-  <br><sub>周计划视图：模型生成 pending 提案，确认后才落库为正式任务</sub>
-</p>
-
-<p align="center">
-  <img src="KnowDo/docs/images/mobile-390x844-tasks.png" width="30%" alt="移动端任务视图">
-  <br><sub>移动端 390×844 · 任务视图（全部 10 张截图见 <a href="KnowDo/docs/images/">docs/images/</a>）</sub>
-</p>
-
 ---
 
 ## 克隆与快速开始
@@ -182,93 +167,6 @@ flowchart TD
 
 错误码有固定语义：JWT 无效/过期 `401`；工具名或参数不合法 `422`；提案幂等冲突 `409`；Agent 预算或步数耗尽 `429`；DeepSeek 上游失败 `502`；本地模型/RAG 运行时不可用 `503`。
 
-## 关键设计
-
-这一节回答七个"为什么"，是理解整个项目的最佳路径。
-
-### 1. 为什么模型不能直接把建议写进数据库？
-
-因为模型输出是不可信的。写路径是**提案 → 确认**：
-
-```text
-DeepSeek 返回 create_task / 计划工具 tool_call
-  → 服务端校验工具名、参数、预算（白名单内才执行）
-  → 只写入 pending 提案（15 分钟有效期），业务表不变
-  → 用户调用 confirm 接口
-  → 服务端在同一事务内重新校验 owner、档案/计划版本、幂等键
-  → 条件更新 + 唯一约束防重复，确认并写入正式记录
-```
-
-`tool_call_id` 只标识模型的一次调用；`proposal_id` 是数据库里的业务提案，两者不能混用。这套路径用 **79 项确定性行为场景**验证（身份隔离、多轮会话、审批恢复、停止边界），并专项覆盖同计划并发确认、失败整批回滚与同键幂等恢复。
-
-### 2. 为什么隔离必须发生在 SQL 层？
-
-如果"先查出结果再按用户过滤"，数据就已经进入了应用和模型上下文——这是泄露窗口。本项目把隔离推到最前：
-
-```text
-Authorization header → JWT 验签 → sub = 可信 user_id
-  → 所有查询携带 WHERE owner_id = :owner_id
-  → RAG 额外要求 state='ready' AND document_version = active_version
-```
-
-`owner_id` 不从请求 body、工具参数或模型输出中读取。浏览器端用第二账号实测跨用户访问任务、会话、计划均返回 404。
-
-### 3. 一次周计划确认，什么时候会返回 409？
-
-三种情况：你确认前**改过档案**（revision 不匹配）；已有**更新的计划**（plan_version 落后）；**同键并发确认**（幂等键/唯一约束冲突）。409 是设计出来的结果，不是故障——它保证旧提案永远不能覆盖新事实。并发确认由行锁 + 单事务保证，实测通过。
-
-### 4. 资料上传失败后，旧资料还能用吗？
-
-能。文档有显式生命周期：
-
-```text
-pending → processing → 切块 + embedding + 写入新版本 → ready（切换 active_version）
-                                    ↘ 失败 → failed（旧 ready/active 版本保留）
-```
-
-检索 SQL 同时过滤 `state='ready'` 与 `active_version`，半成品、失败版本和旧版本永远不会进入 RAG 上下文。删除与激活在同一事务内完成，行锁保护并发激活。
-
-### 5. 刷新页面后，Agent 还认得我吗？
-
-认得。会话 ID 是服务端校验过的 UUID，浏览器把它存在 localStorage；消息、运行记录与 LangGraph checkpoint 持久化。审批流程使用 LangGraph 的 `interrupt/resume`：确认中途关掉页面，下次打开可以继续。`(session_id, sequence)` 唯一约束与原子序号分配保证消息不会乱序或重复。
-
-### 6. 关键词检索凭什么做到 P50 3.41ms？
-
-PostgreSQL 全文检索的三个决定：受限 token 白名单（只放行安全的关键词 token）、OR `to_tsquery`（不要求全部词命中）、GIN 索引。它与 pgvector 双路召回、RRF 融合排序。实测数据见下表——同时如实保留"无答案正确率 0.900→0.800"的取舍：宁可不答，也不答错。
-
-### 7. 什么可以重试，什么不可以？
-
-- **可以**：模型的 HTTP 请求（网络抖动、上游 5xx）按策略有限重试；
-- **不可以**：本地工具执行——它可能有副作用（写库、删数据），放进重试器会造成重复执行；
-- 因此重试边界画在"纯网络调用"上，副作用操作靠事务、幂等键和唯一约束兜底。
-
-## 实测数据
-
-> 全部数字来自真实运行报告，原始证据保存在本仓库 `benchmarks/` 下（报告、截图、数据库实证）；**不代表在线规模或生产并发容量**。
-
-### RAG 检索（同一 120 条人工核验题集，每策略 5 轮共 600 次测量）
-
-| 指标 | 改造前 | 改造后 |
-|---|---:|---:|
-| 关键词 Recall@5 | 0.675 | **0.925** |
-| 关键词 MRR@5 | 0.650 | **0.879** |
-| 关键词 P50 延迟 | — | **3.41ms**（同轮向量 11.39ms / 混合 15.12ms） |
-| 无答案正确率 | 0.900 | 0.800（如实保留的取舍） |
-
-范围：10 条合成语料与独立实验库。
-
-### 测试规模（2026-10-23 仓库 head 本地实测）
-
-| 套件 | 结果 | 环境 |
-|---|---|---|
-| 全量回归（SQLite） | 357 项收集，0 失败（10 跳过） | 本地 venv |
-| PostgreSQL 专项 | **356 passed / 1 skipped** | 真实 PostgreSQL + pgvector |
-| 浏览器端到端 | **8 场景 76/76**，page_errors=0 | Playwright + 真实 Edge |
-| 确定性行为场景 | 79 项全部通过 | 离线桩模型 |
-| CSV 幂等探针 | 10/10 轮，业务数据恰好一份 | 双线程 + 真实 PostgreSQL |
-
-浏览器 E2E 使用离线桩模型，验证的是**浏览器控制流、故障恢复与写入行为**，不代表 DeepSeek 在线回答质量。E2E 还曾抓出两个真实缺陷并完成修复验证：任务完成时实际分钟丢失、聊天重复提交双写——均以数据库落库结果为证。
-
 ## 目录结构
 
 ```text
@@ -295,20 +193,6 @@ PostgreSQL 全文检索的三个决定：受限 token 白名单（只放行安�
 └── .github/workflows/           # CI：push / PR 触发全量测试
 ```
 
-## 文档索引
-
-| 文档 | 内容 |
-|---|---|
-| [KnowDo/ARCHITECTURE.md](KnowDo/ARCHITECTURE.md) | 架构、Agent 数据流、权限边界、错误映射 |
-| [KnowDo/MODULE_LAYOUT.md](KnowDo/MODULE_LAYOUT.md) | 目录职责与请求链路 |
-| [KnowDo/AUTH.md](KnowDo/AUTH.md) | 注册/登录与任务隔离 |
-| [KnowDo/WRITE_CONFIRMATION.md](KnowDo/WRITE_CONFIRMATION.md) | 任务提案与确认机制 |
-| [KnowDo/RAG.md](KnowDo/RAG.md) | RAG 检索、答案溯源与评测 |
-| [KnowDo/RELIABILITY.md](KnowDo/RELIABILITY.md) | 重试策略、安全日志与固定评测 |
-| [KnowDo/MIGRATIONS.md](KnowDo/MIGRATIONS.md) | Alembic 迁移与版本说明 |
-| [KnowDo/DOCKER.md](KnowDo/DOCKER.md) | Compose 环境、端口与网络 |
-| [KnowDo/QUALITY_REPORT.md](KnowDo/QUALITY_REPORT.md) | 项目质量与失败复盘 |
-| [KnowDo/FINAL_ACCEPTANCE.md](KnowDo/FINAL_ACCEPTANCE.md) | 功能验收与演示场景 |
 
 
 ## 演进路线
