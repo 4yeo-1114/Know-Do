@@ -51,7 +51,7 @@ docker compose up --build      # api 容器启动时自动执行 alembic upgrade
 - 工作台：<http://127.0.0.1:8001/app/>
 - Swagger API 文档：<http://127.0.0.1:8001/docs>
 
-DeepSeek 问答需要真实 API Key：在 `.env` 中补 `DEEPSEEK_API_KEY`。首次启动会下载 embedding 模型（`BAAI/bge-small-zh-v1.5`）到 `fastembed_cache` 卷，稍等片刻。
+DeepSeek 问答需要真实 API Key：在 `.env` 中补 `DEEPSEEK_API_KEY`。不配置 Key 也能启动——任务、周计划、训练与档案功能不受影响，仅聊天与 RAG 问答不可用。首次构建需下载基础镜像并安装依赖（含 onnxruntime 等较大的包），耗时较长；首次使用 RAG 还会下载 embedding 模型（`BAAI/bge-small-zh-v1.5`）到 `fastembed_cache` 卷，稍等片刻。服务启动成功的标志是日志出现 `Uvicorn running on http://0.0.0.0:8000`。
 
 ### 方式二：本地 venv（SQLite，无 RAG 的轻量体验）
 
@@ -76,6 +76,14 @@ python -m venv .venv
 cd KnowDo     # 测试位于仓库根的 tests/
 .\.venv\Scripts\python.exe -m pytest -q
 ```
+
+### 国内网络环境提示
+
+部分网络环境下 Docker Hub 与 PyPI 直连不稳定。若构建在拉取镜像或 `pip install` 阶段失败：
+
+1. 为 Docker Desktop 配置镜像加速：Settings → Docker Engine 中加入 `registry-mirrors`（如 `https://docker.1ms.run`、`https://docker.m.daocloud.io`、`https://dockerproxy.net`），Apply & restart 后重试；
+2. `pip install` 下载大包偶发中断时，直接重跑一次构建即可，已完成的层会复用缓存；
+3. 仍不稳定时，可改用方式二（本地 venv），或让 Docker Desktop 走本地代理（Resources → Proxies，需代理软件开启局域网连接）。
 
 ## 使用流程
 

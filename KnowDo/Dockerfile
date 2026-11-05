@@ -15,6 +15,7 @@ COPY user_profile ./user_profile
 COPY knowledge ./knowledge
 COPY storage ./storage
 COPY core ./core
+COPY weekly_plans ./weekly_plans
 COPY frontend ./frontend
 COPY alembic.ini ./
 COPY migrations ./migrations
