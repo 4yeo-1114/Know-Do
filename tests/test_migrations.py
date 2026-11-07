@@ -36,10 +36,15 @@ def test_upgrade_creates_versioned_tasks_table(tmp_path):
             for fk in inspector.get_foreign_keys("task_proposals")
         )
         assert "alembic_version" in inspector.get_table_names()
+        assert "body_part" in {column["name"] for column in inspector.get_columns("exercise_sets")}
+        assert all(
+            column["name"] != "body_part" or column["nullable"]
+            for column in inspector.get_columns("exercise_sets")
+        )
         with engine.connect() as connection:
             assert connection.execute(
                 text("SELECT version_num FROM alembic_version")
-                    ).scalar_one() == "0017_agent_message_sequence"
+                    ).scalar_one() == "0018_exercise_body_part"
     finally:
         engine.dispose()
 
@@ -118,6 +123,6 @@ def test_agent_message_sequence_migration_backfills_existing_messages(tmp_path):
             )) == 4
             assert connection.scalar(text(
                 "SELECT version_num FROM alembic_version"
-            )) == "0017_agent_message_sequence"
+            )) == "0018_exercise_body_part"
     finally:
         engine.dispose()

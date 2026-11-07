@@ -69,3 +69,79 @@ def test_document_list_shows_localized_state_and_actions():
     # 有文档在索引中时轮询刷新；上传逐文件进行并给出进度
     assert "setInterval" in script
     assert "上传中" in script
+
+
+def test_fitness_view_uses_workout_table_and_drops_single_form_and_csv_paste():
+    client = TestClient(app)
+    page = client.get("/app").text
+    script = client.get("/app/app.js").text
+
+    # 旧的单次训练表单与 CSV 粘贴入口彻底移除
+    assert "记录训练" not in page
+    assert "workout-form" not in page
+    assert '$("workout-form")' not in script
+    assert "fitness-csv" not in page
+    assert "fitness-csv" not in script
+    assert "BULK IMPORT" not in page
+    # 训练表格 + 六列表头
+    assert "训练表格" in page
+    assert 'id="workout-rows"' in page
+    for header in ("日期", "部位", "动作", "重量 kg", "次数", "组数"):
+        assert header in page
+    # 体重小表单保留
+    assert 'id="weight-form"' in page
+
+
+def test_workout_table_offers_presets_and_row_controls():
+    client = TestClient(app)
+    page = client.get("/app").text
+    script = client.get("/app/app.js").text
+
+    assert 'id="body-part-options"' in page
+    assert 'id="exercise-options"' in page
+    for body_part in ("胸", "背", "腿", "肩", "手臂", "核心", "有氧"):
+        assert f'<option value="{body_part}"></option>' in page
+    for exercise in ("卧推", "引体向上", "深蹲", "硬拉", "跑步"):
+        assert f'<option value="{exercise}"></option>' in page
+    assert 'id="add-workout-row"' in page
+    assert "addWorkoutRow" in script
+    assert "data-remove-workout-row" in script
+
+
+def test_workout_table_submits_generated_csv_to_import_commit():
+    client = TestClient(app)
+    script = client.get("/app/app.js").text
+
+    # 前端把表格拼成 CSV 后走幂等导入接口；组数展开为多行
+    assert "workout_date,exercise_name,weight_kg,reps,body_part,recorded_on" in script
+    assert '"/fitness/import/commit"' in script
+    assert "collectWorkoutRows" in script
+    assert "workoutCsvText" in script
+    assert "set < Number(row.sets)" in script
+    # 行校验与空行跳过
+    assert "请补全第" in script
+    assert "请先填写训练记录" in script
+
+
+def test_exercise_chart_supports_three_view_switch():
+    client = TestClient(app)
+    page = client.get("/app").text
+    script = client.get("/app/app.js").text
+
+    assert 'id="exercise-chart-view"' in page
+    for option in ('value="total"', 'value="daily"', 'value="per-exercise"'):
+        assert option in page
+    for label in ("各动作总量", "各日期总训练量", "每动作训练量变化"):
+        assert label in page
+    assert "drawMultiLine" in script
+    assert 'view === "daily"' in script
+    assert 'view === "per-exercise"' in script
+
+
+def test_long_panels_scroll_internally():
+    client = TestClient(app)
+    css = client.get("/app/app.css").text
+
+    assert ".list-stack { display: grid; max-height: 360px; overflow-y: auto; }" in css
+    assert ".data-list { max-height: 220px; overflow-y: auto; margin-top: 15px; }" in css
+    assert ".workout-table-scroll { max-height: 320px; overflow-y: auto; }" in css

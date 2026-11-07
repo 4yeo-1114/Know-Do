@@ -50,8 +50,23 @@ class FitnessRepository:
             for row in weights:
                 iso = row.recorded_on.isocalendar()
                 by_week[f"{iso.year}-W{iso.week:02d}"].append(row.weight_kg)
+            timeline_rows = session.execute(
+                select(WorkoutSession.workout_date, ExerciseSet.exercise_name,
+                       func.sum(ExerciseSet.weight_kg * ExerciseSet.reps).label("volume"))
+                .join(ExerciseSet, ExerciseSet.session_id == WorkoutSession.id)
+                .where(WorkoutSession.owner_id == owner_id)
+                .group_by(WorkoutSession.workout_date, ExerciseSet.exercise_name)
+                .order_by(WorkoutSession.workout_date)
+            ).all()
+            dates = sorted({row.workout_date for row in timeline_rows})
+            exercises = {}
+            for row in timeline_rows:
+                column = dates.index(row.workout_date)
+                exercises.setdefault(row.exercise_name, [0.0] * len(dates))[column] = float(row.volume)
+            volume_timeline = {"dates": [day.isoformat() for day in dates], "exercises": exercises}
             return {"volume_by_exercise": dict(volume), "exercise_pr": personal_record,
-                    "weekly_weight": {key: sum(values) / len(values) for key, values in by_week.items()}}
+                    "weekly_weight": {key: sum(values) / len(values) for key, values in by_week.items()},
+                    "volume_timeline": volume_timeline}
 
     def commit_import(self, owner_id: int, import_key: str, rows: list[dict]) -> dict:
         try:
@@ -79,7 +94,7 @@ class FitnessRepository:
                     session.add(workout)
                     session.flush()
                     for row in items:
-                        session.add(ExerciseSet(session_id=workout.id, exercise_name=row["exercise_name"], weight_kg=row["weight_kg"], reps=row["reps"]))
+                        session.add(ExerciseSet(session_id=workout.id, exercise_name=row["exercise_name"], body_part=row.get("body_part"), weight_kg=row["weight_kg"], reps=row["reps"]))
                 record = FitnessImport(owner_id=owner_id, import_key=import_key, row_count=len(rows), workout_count=len(workouts), weight_count=weight_rows)
                 session.add(record)
                 session.flush()

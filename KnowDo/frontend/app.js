@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const state = { token: localStorage.getItem("study_token"), authMode: "login", tasks: [], taskProgress: null, fitness: null, documents: [], documentError: null, plans: [], profile: null, sessionId: localStorage.getItem("study_session_id"), csvReady: false };
+const state = { token: localStorage.getItem("study_token"), authMode: "login", tasks: [], taskProgress: null, fitness: null, documents: [], documentError: null, plans: [], profile: null, sessionId: localStorage.getItem("study_session_id") };
 let toastTimer;
 
 function escapeHtml(value) {
@@ -20,6 +20,7 @@ async function api(path, options = {}) {
   let data = null;
   try { data = response.status === 204 ? null : await response.json(); } catch (_) { /* Response was not JSON. */ }
   if (!response.ok) throw new Error(apiError(data, `请求失败（${response.status}）`));
+  if (data && typeof data === "object") Object.defineProperty(data, "status", { value: response.status, enumerable: false });
   return data;
 }
 
@@ -37,7 +38,7 @@ function enterWorkspace() {
   $("auth-screen").classList.add("hidden");
   $("application").classList.remove("hidden");
   $("today-label").textContent = new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "long", day: "numeric", weekday: "short" }).format(new Date());
-  $("workout-date").value = todayIso(); $("weight-date").value = todayIso(); $("plan-week").value = mondayIso();
+  $("weight-date").value = todayIso(); $("plan-week").value = mondayIso();
   if (!$("plan-task-editor").children.length) addPlanTask();
   refreshWorkspace();
 }
@@ -77,12 +78,47 @@ function drawChart(canvasId, data, color, suffix = "", kind = "line") {
   ctx.fillStyle = color; points.forEach(([, value], index) => { const x = left + usableW * index / (points.length - 1); const y = bottom - (Number(value) / max) * usableH; ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill(); });
   ctx.fillStyle = "#52616c"; ctx.font = "11px sans-serif"; points.forEach(([label, value], index) => { const x = left + usableW * index / (points.length - 1); ctx.fillText(`${Number(value).toFixed(1)}${suffix}`, x - 13, bottom - (Number(value) / max) * usableH - 8); ctx.fillText(label.slice(5), x - 16, height - 7); }); return true;
 }
+const CHART_COLORS = ["#c5664f", "#456b83", "#98702e", "#176b59", "#7a5c9e", "#8a6d3b"];
+function drawMultiLine(canvasId, timeline, colors, suffix = "") {
+  const canvas = $(canvasId); const ctx = canvas.getContext("2d");
+  const dates = (timeline && timeline.dates) || []; const series = Object.entries((timeline && timeline.exercises) || {});
+  const width = Math.max(280, canvas.clientWidth || 500); const height = Number(canvas.getAttribute("height")) || 230; const scale = window.devicePixelRatio || 1;
+  canvas.width = width * scale; canvas.height = height * scale; ctx.scale(scale, scale); ctx.clearRect(0, 0, width, height);
+  if (!dates.length || !series.length) return false;
+  const values = series.flatMap(([, points]) => points).map(Number); const max = Math.max(...values, 1);
+  const legendGap = 18; const left = 34; const bottom = height - 28; const span = dates.length - 1 || 1; const usableW = width - left - 12; const usableH = bottom - 24 - legendGap;
+  series.forEach(([name], index) => { ctx.fillStyle = colors[index % colors.length]; ctx.font = "10px sans-serif"; ctx.textAlign = "start"; ctx.fillText(name, left + index * 88, 15); });
+  ctx.strokeStyle = "#e1e8e6"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(left, 24 + legendGap); ctx.lineTo(left, bottom); ctx.lineTo(width - 12, bottom); ctx.stroke();
+  series.forEach(([, points], seriesIndex) => {
+    const color = colors[seriesIndex % colors.length];
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath();
+    points.forEach((value, index) => { const x = left + usableW * index / span; const y = bottom - (Number(value) / max) * usableH; index ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+    ctx.stroke();
+    ctx.fillStyle = color; points.forEach((value, index) => { const x = left + usableW * index / span; const y = bottom - (Number(value) / max) * usableH; ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill(); });
+  });
+  ctx.fillStyle = "#52616c"; ctx.font = "10px sans-serif"; ctx.textAlign = "center";
+  dates.forEach((day, index) => ctx.fillText(String(day).slice(5), left + usableW * index / span, height - 7));
+  ctx.textAlign = "start"; return true;
+}
 function renderFitness() {
-  const data = state.fitness || { volume_by_exercise: {}, exercise_pr: {}, weekly_weight: {} }; const volume = data.volume_by_exercise || {}; const prs = data.exercise_pr || {}; const weights = data.weekly_weight || {};
+  const data = state.fitness || {}; const volume = data.volume_by_exercise || {}; const prs = data.exercise_pr || {}; const weights = data.weekly_weight || {};
+  const timeline = data.volume_timeline || { dates: [], exercises: {} };
   const totalVolume = Object.values(volume).reduce((sum, value) => sum + Number(value), 0); const prEntries = Object.entries(prs); const best = prEntries.sort((a, b) => Number(b[1]) - Number(a[1]))[0];
   $("metric-volume").textContent = totalVolume ? `${Math.round(totalVolume).toLocaleString()} kg` : "—";
   $("metric-pr").textContent = best ? `${best[1]} kg` : "—"; $("metric-pr-name").textContent = best ? best[0] : "最高重量";
-  $("exercise-empty").classList.toggle("hidden", drawChart("exercise-chart", volume, "#c5664f", "kg", "bar") || Object.keys(volume).length > 0);
+  const view = $("exercise-chart-view").value;
+  let hasData;
+  if (view === "daily") {
+    const daily = {};
+    timeline.dates.forEach((day, index) => { daily[day] = Object.values(timeline.exercises).reduce((sum, values) => sum + Number(values[index] || 0), 0); });
+    hasData = drawChart("exercise-chart", daily, "#c5664f", "kg", "bar");
+  } else if (view === "per-exercise") {
+    hasData = drawMultiLine("exercise-chart", timeline, CHART_COLORS, "kg");
+  } else {
+    hasData = drawChart("exercise-chart", volume, "#c5664f", "kg", "bar");
+  }
+  $("exercise-empty").classList.toggle("hidden", hasData);
+  $("exercise-empty").textContent = { total: "保存训练记录后显示动作训练量", daily: "保存训练记录后显示每日训练量", "per-exercise": "保存训练记录后显示每动作训练量变化" }[view];
   $("overview-weight-empty").classList.toggle("hidden", drawChart("overview-weight-chart", weights, "#176b59", "kg") || Object.keys(weights).length > 0);
   $("exercise-pr-list").innerHTML = prEntries.length ? prEntries.map(([name, value]) => `<div class="data-row"><span>${escapeHtml(name)}</span><strong>${escapeHtml(value)} kg</strong></div>`).join("") : `<div class="empty-state">暂无个人纪录</div>`;
 }
@@ -138,6 +174,38 @@ async function adjustPlan(id) { const result = await api(`/plans/${id}/adjust`, 
 function addPlanTask() {
   const node = document.createElement("div"); node.className = "plan-task"; node.innerHTML = `<div class="plan-task-title"><span>计划项</span><button class="button-danger" type="button" data-remove-plan-task>移除</button></div><label>名称</label><input data-plan-title maxlength="200" required><div class="field-pair"><div><label>类型</label><select data-plan-type><option value="learning">学习</option><option value="fitness">健身</option></select></div><div><label>预计分钟</label><input data-plan-minutes type="number" min="1" max="1440" required></div></div><label>日期</label><input data-plan-date type="date" required>`; node.querySelector("[data-plan-date]").value = $("plan-week").value || mondayIso(); $("plan-task-editor").append(node);
 }
+function addWorkoutRow() {
+  const node = document.createElement("tr");
+  node.dataset.workoutRow = "";
+  node.innerHTML = `<td><input type="date" data-row-date value="${todayIso()}" required></td><td><input list="body-part-options" data-row-body-part maxlength="64" placeholder="如：胸" required></td><td><input list="exercise-options" data-row-exercise maxlength="128" placeholder="如：卧推" required></td><td><input type="number" data-row-weight min="0.1" step="0.1" required></td><td><input type="number" data-row-reps min="1" max="1000" value="10" required></td><td><input type="number" data-row-sets min="1" max="100" value="1" required></td><td><button class="button-danger" type="button" data-remove-workout-row aria-label="删除此行">删除</button></td>`;
+  $("workout-rows").append(node);
+}
+function collectWorkoutRows() {
+  const collected = [];
+  [...$("workout-rows").querySelectorAll("tr[data-workout-row]")].forEach((node, index) => {
+    const exercise = node.querySelector("[data-row-exercise]").value.trim();
+    if (!exercise) return;
+    const row = { date: node.querySelector("[data-row-date]").value, bodyPart: node.querySelector("[data-row-body-part]").value.trim(), exercise, weight: node.querySelector("[data-row-weight]").value, reps: node.querySelector("[data-row-reps]").value, sets: node.querySelector("[data-row-sets]").value };
+    if (!row.date || !row.bodyPart || !row.weight || !row.reps || !row.sets) throw new Error(`请补全第 ${index + 1} 行`);
+    collected.push(row);
+  });
+  return collected;
+}
+function csvCell(value) { const text = String(value); return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text; }
+function workoutCsvText(rows) {
+  const lines = ["workout_date,exercise_name,weight_kg,reps,body_part,recorded_on"];
+  for (const row of rows) for (let set = 0; set < Number(row.sets); set += 1) lines.push(`${csvCell(row.date)},${csvCell(row.exercise)},${csvCell(row.weight)},${csvCell(row.reps)},${csvCell(row.bodyPart)},`);
+  return lines.join("\n");
+}
+function clearWorkoutRows() { $("workout-rows").innerHTML = ""; addWorkoutRow(); }
+async function submitWorkoutTable(event) {
+  event.preventDefault();
+  let rows; try { rows = collectWorkoutRows(); } catch (error) { showToast(error.message, "error"); return; }
+  if (!rows.length) { showToast("请先填写训练记录", "error"); return; }
+  const result = await api("/fitness/import/commit", { method: "POST", body: JSON.stringify({ csv_text: workoutCsvText(rows) }) });
+  clearWorkoutRows(); await refreshWorkspace();
+  showToast(result.status === 200 ? "该训练记录已导入过，未重复入库" : "训练记录已保存");
+}
 function renderMessages(messages) {
   $("conversation").innerHTML = messages.length ? messages.map((message) => `<div class="message ${message.role}"><span class="message-label">${message.role === "user" ? "你" : "Agent"}</span>${escapeHtml(message.content)}</div>`).join("") : `<div class="empty-state">当前会话还没有消息。</div>`; $("conversation").scrollTop = $("conversation").scrollHeight;
 }
@@ -183,15 +251,16 @@ function bindEvents() {
   $("auth-form").addEventListener("submit", async (event) => { event.preventDefault(); const username = $("username").value.trim(); const password = $("password").value; try { if (state.authMode === "register") { if (password !== $("confirm-password").value) throw new Error("两次输入的密码不一致"); await api("/auth/register", { method: "POST", body: JSON.stringify({ username, password }) }); setAuthMode("login"); showToast("注册成功，请登录", "info"); return; } const response = await fetch("/auth/login", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ username, password }) }); const data = await response.json(); if (!response.ok) throw new Error(apiError(data, "登录失败")); state.token = data.access_token; localStorage.setItem("study_token", state.token); enterWorkspace(); } catch (error) { $("auth-error").textContent = error.message; } });
   $("auth-switch").addEventListener("click", () => setAuthMode(state.authMode === "login" ? "register" : "login")); $("logout").addEventListener("click", leaveWorkspace); $("reload-all").addEventListener("click", refreshWorkspace);
   $("primary-nav").addEventListener("click", (event) => { const button = event.target.closest("[data-view]"); if (!button) return; document.querySelectorAll(".nav-item").forEach((node) => node.classList.toggle("active", node === button)); document.querySelectorAll(".view").forEach((node) => node.classList.toggle("active", node.id === `view-${button.dataset.view}`)); const names = { overview: ["YOUR WEEK", "总览"], tasks: ["TASK TRACKER", "任务"], fitness: ["TRAINING LOG", "训练"], knowledge: ["KNOWLEDGE BASE", "资料库"], agent: ["PERSISTENT SESSION", "Agent"], planning: ["PROFILE & PLANS", "档案与计划"] }; $("section-kicker").textContent = names[button.dataset.view][0]; $("page-title").textContent = names[button.dataset.view][1]; if (button.dataset.view === "agent") loadSession(); });
-  document.addEventListener("click", async (event) => { const go = event.target.closest("[data-go]"); if (go) document.querySelector(`[data-view="${go.dataset.go}"]`).click(); const complete = event.target.closest("[data-complete-task]"); if (complete) await setTaskStatus(complete.dataset.completeTask, "completed"); const removeTask = event.target.closest("[data-delete-task]"); if (removeTask) await deleteTask(removeTask.dataset.deleteTask); const confirmPlan = event.target.closest("[data-confirm-plan]"); if (confirmPlan) await decidePlan(confirmPlan.dataset.confirmPlan, "confirm"); const rejectPlan = event.target.closest("[data-reject-plan]"); if (rejectPlan) await decidePlan(rejectPlan.dataset.rejectPlan, "reject"); const adjustment = event.target.closest("[data-adjust-plan]"); if (adjustment) await adjustPlan(adjustment.dataset.adjustPlan); const removePlanTask = event.target.closest("[data-remove-plan-task]"); if (removePlanTask) removePlanTask.closest(".plan-task").remove(); const confirmTask = event.target.closest("[data-confirm-task-proposal]"); if (confirmTask) { await api(`/agent/task-proposals/${confirmTask.dataset.confirmTaskProposal}/confirm`, { method: "POST" }); $("agent-proposals").innerHTML = ""; await refreshWorkspace(); showToast("任务提案已确认"); } const rejectTask = event.target.closest("[data-reject-task-proposal]"); if (rejectTask) { await api(`/agent/task-proposals/${rejectTask.dataset.rejectTaskProposal}/reject`, { method: "POST" }); $("agent-proposals").innerHTML = ""; showToast("任务提案已拒绝"); } const removeDocument = event.target.closest("[data-delete-document]"); if (removeDocument) await deleteDocumentById(removeDocument.dataset.deleteDocument); const retryDocument = event.target.closest("[data-retry-document]"); if (retryDocument) await retryDocumentById(retryDocument.dataset.retryDocument); });
+  document.addEventListener("click", async (event) => { const go = event.target.closest("[data-go]"); if (go) document.querySelector(`[data-view="${go.dataset.go}"]`).click(); const complete = event.target.closest("[data-complete-task]"); if (complete) await setTaskStatus(complete.dataset.completeTask, "completed"); const removeTask = event.target.closest("[data-delete-task]"); if (removeTask) await deleteTask(removeTask.dataset.deleteTask); const confirmPlan = event.target.closest("[data-confirm-plan]"); if (confirmPlan) await decidePlan(confirmPlan.dataset.confirmPlan, "confirm"); const rejectPlan = event.target.closest("[data-reject-plan]"); if (rejectPlan) await decidePlan(rejectPlan.dataset.rejectPlan, "reject"); const adjustment = event.target.closest("[data-adjust-plan]"); if (adjustment) await adjustPlan(adjustment.dataset.adjustPlan); const removePlanTask = event.target.closest("[data-remove-plan-task]"); if (removePlanTask) removePlanTask.closest(".plan-task").remove(); const confirmTask = event.target.closest("[data-confirm-task-proposal]"); if (confirmTask) { await api(`/agent/task-proposals/${confirmTask.dataset.confirmTaskProposal}/confirm`, { method: "POST" }); $("agent-proposals").innerHTML = ""; await refreshWorkspace(); showToast("任务提案已确认"); } const rejectTask = event.target.closest("[data-reject-task-proposal]"); if (rejectTask) { await api(`/agent/task-proposals/${rejectTask.dataset.rejectTaskProposal}/reject`, { method: "POST" }); $("agent-proposals").innerHTML = ""; showToast("任务提案已拒绝"); } const removeDocument = event.target.closest("[data-delete-document]"); if (removeDocument) await deleteDocumentById(removeDocument.dataset.deleteDocument); const retryDocument = event.target.closest("[data-retry-document]"); if (retryDocument) await retryDocumentById(retryDocument.dataset.retryDocument); const removeWorkoutRow = event.target.closest("[data-remove-workout-row]"); if (removeWorkoutRow) removeWorkoutRow.closest("tr").remove(); });
   $("task-filter").addEventListener("change", renderTasks); $("plan-filter").addEventListener("change", renderPlans); $("task-form").addEventListener("submit", async (event) => { event.preventDefault(); const body = { title: $("task-title").value.trim(), task_type: $("task-type").value, priority: $("task-priority").value, due_date: $("task-due").value || null, estimated_minutes: $("task-minutes").value ? Number($("task-minutes").value) : null }; await api("/tasks", { method: "POST", body: JSON.stringify(body) }); event.target.reset(); await refreshWorkspace(); showToast("任务已添加"); });
-  $("workout-form").addEventListener("submit", async (event) => { event.preventDefault(); await api("/fitness/workouts", { method: "POST", body: JSON.stringify({ workout_date: $("workout-date").value, sets: [{ exercise_name: $("exercise-name").value.trim(), weight_kg: Number($("exercise-weight").value), reps: Number($("exercise-reps").value) }] }) }); event.target.reset(); $("workout-date").value = todayIso(); await refreshWorkspace(); showToast("训练记录已保存"); });
   $("weight-form").addEventListener("submit", async (event) => { event.preventDefault(); await api("/fitness/weight", { method: "POST", body: JSON.stringify({ recorded_on: $("weight-date").value, weight_kg: Number($("weight-value").value) }) }); event.target.reset(); $("weight-date").value = todayIso(); await refreshWorkspace(); showToast("体重已保存"); });
-  $("preview-fitness").addEventListener("click", async () => { try { const result = await api("/fitness/import/preview", { method: "POST", body: JSON.stringify({ csv_text: $("fitness-csv").value }) }); state.csvReady = true; $("commit-fitness").disabled = false; $("fitness-preview").textContent = `校验通过：${result.row_count} 行，${result.workout_count} 条训练，${result.weight_count} 条体重。`; } catch (error) { state.csvReady = false; $("commit-fitness").disabled = true; $("fitness-preview").textContent = error.message; } });
-  $("commit-fitness").addEventListener("click", async () => { if (!state.csvReady) return; const result = await api("/fitness/import/commit", { method: "POST", body: JSON.stringify({ csv_text: $("fitness-csv").value }) }); state.csvReady = false; $("commit-fitness").disabled = true; $("fitness-preview").textContent = `已导入：${result.row_count} 行。`; await refreshWorkspace(); showToast("训练 CSV 已导入"); });
+  $("add-workout-row").addEventListener("click", addWorkoutRow);
+  $("workout-table-form").addEventListener("submit", submitWorkoutTable);
+  $("exercise-chart-view").addEventListener("change", renderFitness);
   $("document-form").addEventListener("submit", async (event) => { event.preventDefault(); const files = [...$("document-file").files]; if (!files.length) return; const submit = event.target.querySelector("button[type=submit]"); submit.disabled = true; const originalText = submit.textContent; let succeeded = 0; const failures = []; for (const [index, file] of files.entries()) { submit.textContent = `上传中 ${index + 1}/${files.length}…`; try { await uploadDocumentFile(file); succeeded += 1; await refreshWorkspace(); } catch (error) { failures.push(`${file.name}：${error.message}`); } } event.target.reset(); $("document-version").value = "v1"; submit.textContent = originalText; submit.disabled = false; if (failures.length) showToast(`上传完成：成功 ${succeeded} 个，失败 ${failures.length} 个（${failures[0]}）`); else showToast(`已上传 ${succeeded} 个文件，正在后台建立索引`); startDocumentPolling(); });
   $("new-session").addEventListener("click", () => { state.sessionId = null; localStorage.removeItem("study_session_id"); renderMessages([]); $("agent-proposals").innerHTML = ""; }); $("chat-form").addEventListener("submit", async (event) => { event.preventDefault(); await sendChat(); }); $("profile-form").addEventListener("submit", submitProfile); $("delete-profile").addEventListener("click", async () => { await api("/profile", { method: "DELETE" }); await refreshWorkspace(); showToast("档案已删除"); }); $("add-plan-task").addEventListener("click", addPlanTask); $("plan-form").addEventListener("submit", submitPlan);
 }
 
 bindEvents();
+addWorkoutRow();
 if (state.token) enterWorkspace(); else setAuthMode("login");

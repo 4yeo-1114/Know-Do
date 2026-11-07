@@ -216,6 +216,7 @@ class ExerciseSet(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     session_id: Mapped[int] = mapped_column(ForeignKey("workout_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
     exercise_name: Mapped[str] = mapped_column(String, nullable=False)
+    body_part: Mapped[str | None] = mapped_column(String, nullable=True)
     weight_kg: Mapped[float] = mapped_column(Float, nullable=False)
     reps: Mapped[int] = mapped_column(nullable=False)
 

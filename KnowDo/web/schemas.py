@@ -118,6 +118,7 @@ class FitnessProgressRead(BaseModel):
     volume_by_exercise: dict[str, float]
     exercise_pr: dict[str, float]
     weekly_weight: dict[str, float]
+    volume_timeline: dict
 
 
 class FitnessCsvRequest(BaseModel):

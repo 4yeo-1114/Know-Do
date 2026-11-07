@@ -26,9 +26,12 @@ def parse_csv(csv_text: str) -> list[dict]:
             if has_workout_date:
                 if not raw.get("exercise_name", "").strip():
                     raise ValueError("exercise_name 不能为空")
-                rows.append({"kind": "workout", "workout_date": date.fromisoformat(raw["workout_date"]),
-                             "exercise_name": raw["exercise_name"].strip(),
-                             "weight_kg": float(raw["weight_kg"]), "reps": int(raw["reps"])})
+                row = {"kind": "workout", "workout_date": date.fromisoformat(raw["workout_date"]),
+                       "exercise_name": raw["exercise_name"].strip(),
+                       "weight_kg": float(raw["weight_kg"]), "reps": int(raw["reps"])}
+                if "body_part" in raw:
+                    row["body_part"] = raw["body_part"].strip() or None
+                rows.append(row)
             elif raw.get("recorded_on", "").strip():
                 rows.append({"kind": "weight", "recorded_on": date.fromisoformat(raw["recorded_on"]),
                              "weight_kg": float(raw["weight_kg"])})
