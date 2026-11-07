@@ -169,6 +169,84 @@ def test_duplicate_upload_while_processing_returns_409(tmp_path):
     database.dispose()
 
 
+def test_retry_failed_document_reenqueues_and_recovers(tmp_path):
+    model = FakeModel()
+    client, database, store, worker = make_client(tmp_path, model=model)
+    alice = auth_headers(client, "alice")
+
+    model.fail = True
+    broken = upload_file(client, alice, filename="broken.md", content="会失败的内容").json()
+    assert worker.run_next_job() is True
+    assert client.get(f"/documents/{broken['id']}", headers=alice).json()["state"] == "failed"
+
+    model.fail = False
+    retried = client.post(f"/documents/{broken['id']}/retry", headers=alice)
+    assert retried.status_code == 202
+    assert retried.json()["id"] == broken["id"]
+
+    assert worker.run_next_job() is True
+    recovered = client.get(f"/documents/{broken['id']}", headers=alice).json()
+    assert recovered["state"] == "ready"
+    assert recovered["error_message"] is None
+    assert len(store.inserted) == 1
+    database.dispose()
+
+
+def test_retry_rejects_non_failed_documents(tmp_path):
+    client, database, store, worker = make_client(tmp_path)
+    alice = auth_headers(client, "alice")
+
+    pending = upload_file(client, alice, filename="pending.md", content="排队内容").json()
+    assert client.post(f"/documents/{pending['id']}/retry", headers=alice).status_code == 409
+
+    assert worker.run_next_job() is True
+    ready = upload_file(client, alice, filename="ready.md", content="完成内容").json()
+    assert worker.run_next_job() is True
+    assert client.post(f"/documents/{ready['id']}/retry", headers=alice).status_code == 409
+
+    assert client.post("/documents/nonexistent/retry", headers=alice).status_code == 404
+    database.dispose()
+
+
+def test_retry_without_sidecar_marks_failed_with_clear_message(tmp_path):
+    model = FakeModel()
+    client, database, store, worker = make_client(tmp_path, model=model)
+    alice = auth_headers(client, "alice")
+
+    model.fail = True
+    broken = upload_file(client, alice, filename="broken.md", content="会失败的内容").json()
+    assert worker.run_next_job() is True
+
+    upload_dir = tmp_path / "uploads"
+    (upload_dir / f"{broken['id']}.upload").unlink()
+    (upload_dir / f"{broken['id']}.json").unlink()
+
+    model.fail = False
+    assert client.post(f"/documents/{broken['id']}/retry", headers=alice).status_code == 202
+    assert worker.run_next_job() is True
+
+    failed = client.get(f"/documents/{broken['id']}", headers=alice).json()
+    assert failed["state"] == "failed"
+    assert "重新上传" in failed["error_message"]
+    database.dispose()
+
+
+def test_nul_bytes_are_stripped_from_ingested_chunks(tmp_path):
+    client, database, store, worker = make_client(tmp_path)
+    alice = auth_headers(client, "alice")
+
+    body = upload_file(
+        client, alice, filename="weird.md", content="正常内容\x00后面还有内容"
+    ).json()
+    assert worker.run_next_job() is True
+
+    document = client.get(f"/documents/{body['id']}", headers=alice).json()
+    assert document["state"] == "ready"
+    assert store.inserted
+    assert all("\x00" not in text for _, _, text, _ in store.inserted)
+    database.dispose()
+
+
 def test_recover_interrupted_marks_stale_processing_failed(tmp_path):
     url = f"sqlite+pysqlite:///{(tmp_path / 'recover.db').as_posix()}"
     upgrade_database(url)

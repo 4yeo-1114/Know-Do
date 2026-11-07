@@ -63,7 +63,12 @@ def chunk_pages(
     config = IngestionConfig(chunk_size, overlap)
     chunks: list[DocumentChunk] = []
     for page in pages:
-        paragraphs = [part.strip() for part in re.split(r"\n\s*\n", page.text) if part.strip()]
+        paragraphs = []
+        for part in re.split(r"\n\s*\n", page.text):
+            #剥离 NUL 字节：PostgreSQL text 字段不允许 \x00
+            cleaned = part.replace("\x00", "").strip()
+            if cleaned:
+                paragraphs.append(cleaned)
         if not paragraphs:
             continue
         for paragraph in paragraphs:

@@ -124,7 +124,11 @@ def ingest_document_from_disk(
     lifecycle: DocumentLifecycle,
 ) -> int:
     """从磁盘重读原始文件，对已存在的文档行执行完整索引流程。"""
-    meta, raw = load_upload(upload_dir, document_id)
+    try:
+        meta, raw = load_upload(upload_dir, document_id)
+    except FileNotFoundError:
+        lifecycle.mark_failed(document_id, "原始文件缺失，请重新上传该文件")
+        return 0
     source = meta["source"]
     suffix = Path(source).suffix.lower()
     pages = None

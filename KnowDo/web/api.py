@@ -451,6 +451,19 @@ def create_app(
             raise HTTPException(status_code=503, detail="后台索引服务未启用")
         return index_worker_factory()
 
+    def _document_ingest_read(document, chunks_ingested: int) -> dict:
+        return {
+            "id": document.id,
+            "source": document.source,
+            "document_version": document.document_version,
+            "state": document.state,
+            "error_message": document.error_message,
+            "active_version": document.active_version,
+            "created_at": document.created_at,
+            "updated_at": document.updated_at,
+            "chunks_ingested": chunks_ingested,
+        }
+
     @app.post("/documents", response_model=DocumentIngestRead, status_code=201)
     def upload_document(
         request: DocumentUploadRequest,
@@ -469,17 +482,7 @@ def create_app(
             )
         except DocumentVersionConflictError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
-        return {
-            "id": result.document.id,
-            "source": result.document.source,
-            "document_version": result.document.document_version,
-            "state": result.document.state,
-            "error_message": result.document.error_message,
-            "active_version": result.document.active_version,
-            "created_at": result.document.created_at,
-            "updated_at": result.document.updated_at,
-            "chunks_ingested": result.chunks_ingested,
-        }
+        return _document_ingest_read(result.document, result.chunks_ingested)
 
     @app.post("/documents/file", response_model=DocumentIngestRead, status_code=201)
     def upload_document_file(
@@ -530,17 +533,7 @@ def create_app(
         #已 ready 的幂等重复上传无需再次索引；其余状态交给后台 worker
         if result.document.state != "ready":
             _index_worker().enqueue(result.document.id)
-        return {
-            "id": result.document.id,
-            "source": result.document.source,
-            "document_version": result.document.document_version,
-            "state": result.document.state,
-            "error_message": result.document.error_message,
-            "active_version": result.document.active_version,
-            "created_at": result.document.created_at,
-            "updated_at": result.document.updated_at,
-            "chunks_ingested": result.chunks_ingested,
-        }
+        return _document_ingest_read(result.document, result.chunks_ingested)
 
     @app.get("/documents", response_model=list[DocumentRead])
     def list_documents(user_id: Annotated[int, Depends(current_user_id)]):
@@ -566,6 +559,20 @@ def create_app(
         except DocumentNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         return Response(status_code=204)
+
+    @app.post("/documents/{document_id}/retry", response_model=DocumentIngestRead, status_code=202)
+    def retry_document(
+        document_id: str,
+        user_id: Annotated[int, Depends(current_user_id)],
+    ):
+        try:
+            document = _document_service().get(user_id, document_id)
+        except DocumentNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        if document.state != "failed":
+            raise HTTPException(status_code=409, detail="只有失败状态的文档可以重试")
+        _index_worker().enqueue(document_id)
+        return _document_ingest_read(document, 0)
 
     @app.post("/agent/chat", response_model=AgentChatRead)
     def agent_chat(
