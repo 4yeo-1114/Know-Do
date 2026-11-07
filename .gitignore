@@ -3,6 +3,7 @@ __pycache__/
 .pytest_cache/
 *.pyc
 KnowDo/tasks.json
+KnowDo/uploads/
 *.db
 *.dump
 .env
@@ -26,6 +27,9 @@ KnowDo/.env
 htmlcov/
 .vscode/
 .idea/
+
+*.db-shm
+*.db-wal
 
 # Learning-only material (kept locally, excluded from the public repository)
 学习记录/
@@ -56,3 +60,6 @@ KnowDo/main.py
 tests/test_agent_loop_demo.py
 tests/test_multi_turn.py
 tests/test_task_proposal_demo.py
+
+
+开发总结-资料库与agent修复.md
