@@ -127,6 +127,20 @@ def test_agent_chat_maps_budget_error_to_429(tmp_path):
     assert response.status_code == 429
 
 
+def test_agent_chat_passes_raised_model_step_limit_to_runner(tmp_path):
+    received = {}
+
+    def runner(question, *, max_model_steps, **kwargs):
+        received["max_model_steps"] = max_model_steps
+        return AgentAnswer("ok", 1, 0, 1, ())
+
+    with authenticated_client(tmp_path, runner) as client:
+        response = client.post("/agent/chat", json={"message": "问题"})
+
+    assert response.status_code == 200
+    assert received["max_model_steps"] == 6
+
+
 def test_agent_chat_maps_knowledge_runtime_failure_to_503(tmp_path):
     def broken_factory():
         raise KnowledgeRuntimeError("embedding 维度不匹配")

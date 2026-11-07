@@ -235,6 +235,9 @@ def create_app(
                 )
                 raise
             response.headers["X-Request-ID"] = request_id
+            #前端静态资源始终重新校验：避免部署后浏览器继续用旧版 app.js
+            if request.url.path.startswith("/app"):
+                response.headers["Cache-Control"] = "no-cache"
             log_event(
                 http_logger,
                 "http_request_completed",
@@ -602,6 +605,7 @@ def create_app(
                         else None
                     ),
                     settings=settings_factory(),
+                    max_model_steps=6,
                     budget=AgentBudget(max_tool_calls=8, max_total_tokens=10_000),
                     history=history,
                     planning_executor=PlanningToolExecutor(

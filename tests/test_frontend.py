@@ -30,6 +30,15 @@ def test_run_trace_is_not_rendered_in_frontend():
     assert "run-summary" not in script
 
 
+def test_frontend_static_assets_are_served_with_no_cache():
+    client = TestClient(app)
+    page = client.get("/app")
+    script = client.get("/app/app.js")
+
+    assert page.headers.get("cache-control") == "no-cache"
+    assert script.headers.get("cache-control") == "no-cache"
+
+
 def test_document_upload_form_allows_multiple_files_and_immediate_return():
     client = TestClient(app)
     page = client.get("/app").text
