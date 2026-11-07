@@ -1,8 +1,12 @@
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from web.api import create_app
 from storage.database import Database
 from knowledge.document_service import DocumentService
+from knowledge.document_lifecycle import DocumentLifecycle
+from knowledge.index_worker import IndexWorker, ingest_document_from_disk
 from storage.migration import upgrade_database
 
 
@@ -26,18 +30,36 @@ class FakeStore:
         return 1
 
 
-def make_client(tmp_path):
+def make_client(tmp_path, *, upload_dir=None):
     url = f"sqlite+pysqlite:///{(tmp_path / 'documents-api.db').as_posix()}"
     upgrade_database(url)
     service_database = Database(url)
     store = FakeStore()
-    service = DocumentService(service_database.sessions, store, FakeModel())
+    model = FakeModel()
+    service = DocumentService(service_database.sessions, store, model)
+    index_worker_factory = None
+    worker = None
+    if upload_dir is not None:
+        upload_dir = Path(upload_dir)
+        lifecycle = DocumentLifecycle(service_database.sessions)
+        worker = IndexWorker(
+            upload_dir,
+            lambda document_id: ingest_document_from_disk(
+                upload_dir, document_id, service_database.sessions, store, model, lifecycle
+            ),
+            start_in_thread=False,
+        )
+        index_worker_factory = lambda: worker
     app = create_app(
         url,
         token_secret="test-secret-key-at-least-32-bytes",
         settings_factory=lambda: object(),
         document_service_factory=lambda: service,
+        index_worker_factory=index_worker_factory,
+        upload_dir=upload_dir,
     )
+    if worker is not None:
+        app.state.index_worker = worker
     return TestClient(app), service_database, store
 
 
@@ -106,7 +128,7 @@ def test_upload_list_get_and_delete_document(tmp_path):
 
 
 def test_upload_text_file_uses_filename_as_source(tmp_path):
-    client, database, store = make_client(tmp_path)
+    client, database, store = make_client(tmp_path, upload_dir=tmp_path / "uploads")
     with client:
         alice = auth_headers(client, "alice")
         response = client.post(
@@ -116,12 +138,15 @@ def test_upload_text_file_uses_filename_as_source(tmp_path):
             headers=alice,
         )
 
-    database.dispose()
-
     assert response.status_code == 201
     assert response.json()["source"] == "notes.md"
-    assert response.json()["chunks_ingested"] == 1
+    assert response.json()["state"] == "pending"
+    assert response.json()["chunks_ingested"] == 0
+
+    worker = client.app.state.index_worker
+    assert worker.run_next_job() is True
     assert store.inserted[-1][1] == "notes.md"
+    database.dispose()
 
 
 def test_upload_file_rejects_unsupported_extension(tmp_path):
@@ -176,7 +201,7 @@ def test_upload_text_pdf_is_accepted(tmp_path):
     payload = BytesIO()
     writer.write(payload)
 
-    client, database, _ = make_client(tmp_path)
+    client, database, _ = make_client(tmp_path, upload_dir=tmp_path / "uploads")
     with client:
         alice = auth_headers(client, "alice")
         response = client.post(
@@ -189,6 +214,7 @@ def test_upload_text_pdf_is_accepted(tmp_path):
 
     assert response.status_code == 201
     assert response.json()["source"] == "guide.pdf"
+    assert response.json()["state"] == "pending"
 
 
 

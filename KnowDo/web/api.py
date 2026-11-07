@@ -92,7 +92,12 @@ from knowledge.knowledge_runtime import (
     rag_enabled_from_env,
 )
 from knowledge.document_lifecycle import DocumentVersionConflictError
-from knowledge.document_service import DocumentNotFoundError, DocumentUpload
+from knowledge.document_service import (
+    DocumentNotFoundError,
+    DocumentUpload,
+    DocumentUploadInProgressError,
+)
+from knowledge.index_worker import build_production_index_worker
 from knowledge.pdf_parser import UnsupportedPdfError, extract_pdf_pages
 from core.observability import (
     configure_application_logging,
@@ -121,6 +126,11 @@ def get_default_database_url() -> str:
     )
 
 
+def get_upload_dir() -> Path:
+    default = Path(__file__).resolve().parents[1] / "uploads"
+    return Path(os.environ.get("UPLOAD_DIR", default)).resolve()
+
+
 def create_app(
     database_location: str | Path,
     *,
@@ -129,11 +139,15 @@ def create_app(
     settings_factory: Callable[[], DeepSeekSettings] = DeepSeekSettings.from_env,
     knowledge_executor_factory: Callable[[], object] | None = None,
     document_service_factory: Callable[[], object] | None = None,
+    index_worker_factory: Callable[[], object] | None = None,
+    upload_dir: str | Path | None = None,
 ) -> FastAPI:
     configure_application_logging()
+    upload_root = Path(upload_dir).resolve() if upload_dir is not None else get_upload_dir()
     #创建数据库连接管理对象
     database = Database(normalize_database_url(database_location))
     checkpoint_store = create_checkpoint_store(database.url)
+    knowledge_runtime = None
     if (
         knowledge_executor_factory is None
         and document_service_factory is None
@@ -147,6 +161,16 @@ def create_app(
             checkpoint_store.close()
             database.dispose()
             raise
+    if index_worker_factory is None and knowledge_runtime is not None:
+        built_worker = None
+
+        def index_worker_factory():
+            nonlocal built_worker
+            if built_worker is None:
+                built_worker = build_production_index_worker(
+                    database, knowledge_runtime, upload_root
+                )
+            return built_worker
 
     #service处理任务的业务层
     service = TaskService(TaskRepository(database.sessions))
@@ -174,9 +198,15 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
+        worker = None
+        if index_worker_factory is not None:
+            worker = index_worker_factory()
+            worker.start()
         try:
             yield
         finally:
+            if worker is not None:
+                worker.stop()
             checkpoint_store.close()
             database.dispose()
 
@@ -416,6 +446,11 @@ def create_app(
         except KnowledgeRuntimeError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
 
+    def _index_worker():
+        if index_worker_factory is None:
+            raise HTTPException(status_code=503, detail="后台索引服务未启用")
+        return index_worker_factory()
+
     @app.post("/documents", response_model=DocumentIngestRead, status_code=201)
     def upload_document(
         request: DocumentUploadRequest,
@@ -475,26 +510,26 @@ def create_app(
             except UnicodeDecodeError as exc:
                 raise HTTPException(status_code=400, detail="文件必须使用 UTF-8 编码") from exc
         try:
-            request = DocumentUploadRequest(
-                source=filename,
-                content=content,
-                document_version=document_version,
-                chunk_size=chunk_size,
-                overlap=overlap,
-            )
-            result = _document_service().ingest(
+            result = _document_service().begin_file_upload(
                 user_id,
                 DocumentUpload(
-                    source=request.source,
-                    content=request.content,
-                    document_version=request.document_version,
-                    chunk_size=request.chunk_size,
-                    overlap=request.overlap,
+                    source=filename,
+                    content=content,
+                    document_version=document_version,
+                    chunk_size=chunk_size,
+                    overlap=overlap,
                     pages=pages,
                 ),
+                raw=raw,
+                upload_dir=upload_root,
             )
         except DocumentVersionConflictError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except DocumentUploadInProgressError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        #已 ready 的幂等重复上传无需再次索引；其余状态交给后台 worker
+        if result.document.state != "ready":
+            _index_worker().enqueue(result.document.id)
         return {
             "id": result.document.id,
             "source": result.document.source,

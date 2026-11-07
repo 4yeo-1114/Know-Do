@@ -3,6 +3,7 @@ __pycache__/
 .pytest_cache/
 *.pyc
 KnowDo/tasks.json
+KnowDo/uploads/
 *.db
 *.dump
 .env

@@ -109,6 +109,24 @@ class DocumentLifecycle:
     def mark_processing(self, document_id: str) -> Document:
         return self._transition(document_id, DocumentState.PROCESSING)
 
+    def recover_interrupted(
+        self, message: str = "服务中断，索引未完成，请重试"
+    ) -> int:
+        """把残留的 processing 文档标记为 failed（服务启动时调用）。返回恢复数量。"""
+        with self._sessions() as session:
+            with session.begin():
+                documents = list(
+                    session.scalars(
+                        select(Document).where(Document.state == DocumentState.PROCESSING)
+                    )
+                )
+                now = self._now()
+                for document in documents:
+                    document.state = DocumentState.FAILED
+                    document.error_message = message
+                    document.updated_at = now
+                return len(documents)
+
     def mark_failed(self, document_id: str, message: str) -> Document:
         if not message.strip():
             raise ValueError("失败原因不能为空")

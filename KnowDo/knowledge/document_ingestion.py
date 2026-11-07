@@ -96,7 +96,6 @@ def ingest_document(
     lifecycle=None,
 ) -> int:
     """Chunk, encode and persist one document in one database transaction."""
-    document = None
     if lifecycle is not None:
         document = lifecycle.start_upload(
             owner_id=owner_id,
@@ -107,8 +106,69 @@ def ingest_document(
         #若上传重复版本 直接返回
         if document.state == "ready":
             return 0
-        lifecycle.mark_processing(document.id)
+        return run_ingestion_for_document(
+            sessions,
+            store,
+            model,
+            document_id=document.id,
+            owner_id=owner_id,
+            source=source,
+            text=text,
+            pages=pages,
+            config=config,
+            replace_existing=replace_existing,
+            lifecycle=lifecycle,
+        )
 
+    #无生命周期管理的直写路径（评测等）保持原行为
+    chunks = chunk_pages(
+        list(pages) if pages is not None else [ParsedPage(1, text)],
+        source=source,
+        chunk_size=config.chunk_size,
+        overlap=config.overlap,
+    )
+    vectors = _encode_many(model, [chunk.text for chunk in chunks])
+    if hasattr(sessions, "begin"):
+        transaction_context = sessions.begin()
+    else:
+        session = sessions()
+        transaction_context = session.begin()
+    with transaction_context as session:
+        if replace_existing:
+            store.delete_document(session,
+                                  owner_id=owner_id,
+                                  source=source)
+        for chunk, vector in zip(chunks, vectors):
+            store.insert_chunk(
+                session,
+                owner_id=owner_id,
+                chunk=chunk,
+                vector=vector,
+                document_version=config.document_version,
+            )
+    return len(chunks)
+
+
+def run_ingestion_for_document(
+    sessions,
+    store,
+    model: EmbeddingModel,
+    *,
+    document_id: str,
+    owner_id: int,
+    source: str,
+    text: str,
+    pages: tuple[ParsedPage, ...] | None = None,
+    config: IngestionConfig = IngestionConfig(),
+    replace_existing: bool = True,
+    lifecycle,
+) -> int:
+    """对已存在的文档行执行 切块→编码→入库→激活 的完整索引流程。
+
+    与 ingest_document 的区别：文档行已存在（pending/failed/processing），
+    不再调用 start_upload；失败时先把文档标记为 failed 再重新抛出。
+    """
+    lifecycle.mark_processing(document_id)
     try:
         chunks = chunk_pages(
             list(pages) if pages is not None else [ParsedPage(1, text)],
@@ -124,17 +184,12 @@ def ingest_document(
             transaction_context = session.begin()
         with transaction_context as session:
             if replace_existing:
-                if lifecycle is None:
-                    store.delete_document(session,
-                                          owner_id=owner_id,
-                                          source=source)
-                else:
-                    store.delete_document_version(
-                        session,
-                        owner_id=owner_id,
-                        source=source,
-                        document_version=config.document_version,
-                    )
+                store.delete_document_version(
+                    session,
+                    owner_id=owner_id,
+                    source=source,
+                    document_version=config.document_version,
+                )
             for chunk, vector in zip(chunks, vectors):
                 store.insert_chunk(
                     session,
@@ -143,12 +198,10 @@ def ingest_document(
                     vector=vector,
                     document_version=config.document_version,
                 )
-        if lifecycle is not None:
-            lifecycle.activate(document.id)
+        lifecycle.activate(document_id)
         return len(chunks)
     except Exception as exc:
-        if lifecycle is not None:
-            lifecycle.mark_failed(document.id, str(exc) or type(exc).__name__)
+        lifecycle.mark_failed(document_id, str(exc) or type(exc).__name__)
         raise
 
 

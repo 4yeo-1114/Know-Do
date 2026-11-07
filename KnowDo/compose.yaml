@@ -28,8 +28,10 @@ services:
       EMBEDDING_DIMENSION: "512"
       EMBEDDING_THREADS: "1"
       EMBEDDING_CACHE_DIR: /app/.cache/fastembed
+      UPLOAD_DIR: /app/uploads
     volumes:
       - fastembed_cache:/app/.cache/fastembed
+      - uploads_data:/app/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -42,3 +44,4 @@ services:
 volumes:
   postgres_data:
   fastembed_cache:
+  uploads_data:
