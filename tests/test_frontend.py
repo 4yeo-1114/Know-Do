@@ -17,3 +17,14 @@ def test_app_route_serves_the_workbench_html():
     assert "metric-grid" in css.text
     assert "refreshWorkspace" in script.text
     assert "/plans" in script.text
+
+
+def test_run_trace_is_not_rendered_in_frontend():
+    client = TestClient(app)
+    page = client.get("/app").text
+    script = client.get("/app/app.js").text
+
+    assert "RUN TRACE" not in page
+    assert "trace-panel" not in page
+    assert "trace-output" not in script
+    assert "run-summary" not in script

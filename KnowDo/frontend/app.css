@@ -103,7 +103,7 @@ h3 { margin: 0 0 8px; font-size: 14px; }
 .inline-result { grid-column: 1 / -1; color: var(--muted); font-size: 13px; }
 .data-list { margin-top: 15px; }
 .data-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #edf0f0; font-size: 13px; }
-.agent-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, .38fr); align-items: start; gap: 14px; }
+.agent-layout { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 14px; }
 .conversation { display: grid; align-content: start; gap: 8px; min-height: 300px; max-height: 54vh; overflow: auto; margin: 0 0 12px; padding: 12px; background: #f5f8f7; }
 .message { max-width: 84%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: #fff; white-space: pre-wrap; overflow-wrap: anywhere; }
 .message.user { justify-self: end; border-color: #c9dfd6; background: var(--green-soft); }
@@ -111,7 +111,6 @@ h3 { margin: 0 0 8px; font-size: 14px; }
 .message-label { display: block; margin-bottom: 4px; color: var(--muted); font-size: 10px; }
 .chat-compose { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 8px; }
 .chat-compose textarea { min-height: 56px; }
-.trace-panel pre { max-height: 440px; overflow: auto; padding: 12px; border-radius: 4px; background: #202b38; color: #e2eeeb; font: 11px/1.5 Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .plan-task-editor { display: grid; gap: 8px; }
 .plan-task { padding: 10px; border: 1px solid var(--line); border-radius: 4px; }
 .plan-task .field-pair { grid-template-columns: 1fr 1fr; }
@@ -142,7 +141,6 @@ canvas { display: block; width: 100%; height: auto; }
   .metric { min-height: 100px; padding: 13px; }
   .metric strong { font-size: 24px; }
   .panel { padding: 14px; }
-  .trace-panel { order: 2; }
   .import-panel { grid-template-columns: 1fr; }
   .import-panel > div:first-child { grid-column: auto; }
   .message { max-width: 94%; }
